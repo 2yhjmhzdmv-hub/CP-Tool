@@ -727,6 +727,7 @@ const loadData = () => {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (!parsed.richtlinien) parsed.richtlinien = [];
+      if (!parsed.assets)      parsed.assets     = [];
       if (!parsed.config)      parsed.config = DEFAULT_CONFIG;
       if (!parsed.users)       parsed.users  = [];
       return parsed;
@@ -827,7 +828,7 @@ const SEED = { anforderungen: [  {
     schutzbedarf: 'niedrig', dienstleistungsmodelle: ['SaaS', 'PaaS', 'IaaS', 'IKT-Beratung'], kritische_funktionen: false,
     erstellt_am: '2024-03-01', aktualisiert_am: '2024-03-01',
   },
-], richtlinien: [], users: [], config: DEFAULT_CONFIG};
+], richtlinien: [], assets: [], users: [], config: DEFAULT_CONFIG};
 
 // ── Icons (inline SVG, 1.5 stroke) ─────────────────────────────────────────
 const Icon = ({ name, cls = 'w-4 h-4' }) => {
@@ -2270,6 +2271,515 @@ const StartseiteView = ({ session, data, onEditWelcome, isAdmin }) => {
   );
 };
 
+// ── Assets ────────────────────────────────────────────────────────────────
+
+const SCHUTZ_STUFEN = ['niedrig', 'mittel', 'hoch'];
+const SCHUTZ_COLORS = {
+  niedrig: { bg: '#e6f1ee', fg: '#2e5a4d', dot: '#4a8a7a', label: 'Niedrig' },
+  mittel:  { bg: '#f7eed8', fg: '#6e4f10', dot: '#c08020', label: 'Mittel'  },
+  hoch:    { bg: '#f7e3df', fg: '#7a261f', dot: '#b53a31', label: 'Hoch'    },
+};
+const DATENSCHUTZ_OPTS = [
+  { id: 'nicht_klassifiziert',  label: 'Nicht klassifiziert'           },
+  { id: 'keine_pb',             label: 'Keine pb-Daten'                },
+  { id: 'normale_kategorien',   label: 'Normale Kategorien pb-Daten'   },
+  { id: 'besondere_kategorien', label: 'Besondere Kategorien pb-Daten' },
+];
+
+const calcGesamtschutz = (a) => {
+  if (!a) return 'niedrig';
+  if (a.gesamtschutzbedarf_methode === 'vererbung') return a.gesamtschutzbedarf_manuell || 'niedrig';
+  const vals = [a.vertraulichkeit, a.integritaet, a.verfuegbarkeit, a.authentizitaet]
+    .map(v => SCHUTZ_STUFEN.indexOf(v || 'niedrig'));
+  return SCHUTZ_STUFEN[Math.max(0, ...vals)];
+};
+
+const SchutzBadge = ({ level }) => {
+  const c = SCHUTZ_COLORS[level] || SCHUTZ_COLORS.niedrig;
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-medium"
+      style={{ background: c.bg, color: c.fg }}>
+      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: c.dot }}/>
+      {c.label}
+    </span>
+  );
+};
+
+const AssetForm = ({ initial, onSave, onClose, config }) => {
+  const isEdit = !!initial?.id;
+  const rollen = config?.rlRollen || [];
+  const [tab, setTab] = useState('allgemein');
+  const [form, setForm] = useState(() => initial || {
+    asset_id: '', titel: '', beschreibung: '', status: 'aktiv',
+    tech_verantwortung: [], fach_verantwortung: [], ki_rolle: 'nein',
+    vertraulichkeit: 'niedrig', integritaet: 'niedrig', verfuegbarkeit: 'niedrig', authentizitaet: 'niedrig',
+    datenschutz: 'nicht_klassifiziert',
+    gesamtschutzbedarf_methode: 'maximum', gesamtschutzbedarf_manuell: 'niedrig',
+    bemerkungen: '', anhaenge: [],
+  });
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const toggleList = (key, val) => setForm(f => ({
+    ...f, [key]: (f[key] || []).includes(val) ? (f[key] || []).filter(x => x !== val) : [...(f[key] || []), val],
+  }));
+
+  const handlePdf = (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    setPdfLoading(true);
+    let done = 0;
+    const results = [];
+    files.forEach(file => {
+      if (file.size > 4 * 1024 * 1024) { alert(`"${file.name}" ist zu groß (max. 4 MB).`); done++; if (done === files.length) setPdfLoading(false); return; }
+      const r = new FileReader();
+      r.onload = ev => {
+        results.push({ name: file.name, size: file.size, data: ev.target.result });
+        done++;
+        if (done === files.length) { setForm(f => ({ ...f, anhaenge: [...(f.anhaenge || []), ...results] })); setPdfLoading(false); }
+      };
+      r.readAsDataURL(file);
+    });
+  };
+  const removeAnhang = (idx) => setForm(f => ({ ...f, anhaenge: (f.anhaenge || []).filter((_, i) => i !== idx) }));
+  const gesamtschutz = calcGesamtschutz(form);
+  const handleSave = () => {
+    if (!form.asset_id.trim()) return alert('Bitte eine ID eingeben.');
+    if (!form.titel.trim()) return alert('Bitte einen Titel eingeben.');
+    onSave(form);
+  };
+
+  const FORM_TABS = [
+    { id: 'allgemein',    label: 'Allgemein'    },
+    { id: 'schutzbedarf', label: 'Schutzbedarf' },
+    { id: 'referenzen',   label: 'Referenzen'   },
+    { id: 'anhaenge',     label: 'Anhänge'      },
+  ];
+
+  const SchutzRow = ({ label, field }) => (
+    <div>
+      <span className="lbl">{label}</span>
+      <div className="flex gap-2 mt-0.5">
+        {SCHUTZ_STUFEN.map(s => {
+          const c = SCHUTZ_COLORS[s]; const active = form[field] === s;
+          return (
+            <label key={s} onClick={() => set(field, s)}
+              className="flex-1 text-center px-2 py-2 rounded-lg border cursor-pointer text-[12px] font-medium transition-colors select-none"
+              style={active ? { background: c.bg, borderColor: c.dot, color: c.fg } : { background: '#fff', borderColor: 'var(--line)', color: 'var(--ink-500)' }}>
+              {c.label}
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  return (
+    <Modal title={isEdit ? 'Asset bearbeiten' : 'Neues Asset'} onClose={onClose} size="xl"
+      footer={<><button onClick={onClose} className="btn btn-ghost">Abbrechen</button><button onClick={handleSave} className="btn btn-primary">Speichern</button></>}>
+      <div className="flex gap-1 border-b border-line -mx-6 px-6 mb-5">
+        {FORM_TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`px-4 py-2 text-[13px] font-medium border-b-2 transition-colors -mb-px ${tab === t.id ? 'border-petrol-500 text-petrol-600' : 'border-transparent text-ink-400 hover:text-ink-900'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'allgemein' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-4">
+            <Field label="ID" required><input className="field font-mono" value={form.asset_id} onChange={e => set('asset_id', e.target.value)} placeholder="AS-001"/></Field>
+            <Field label="Titel" required><input className="field" value={form.titel} onChange={e => set('titel', e.target.value)} placeholder="Bezeichnung des Assets"/></Field>
+          </div>
+          <Field label="Beschreibung">
+            <textarea className="field" rows={3} value={form.beschreibung} onChange={e => set('beschreibung', e.target.value)} placeholder="Kurze Beschreibung…"/>
+          </Field>
+          <Field label="Status">
+            <div className="flex gap-2 mt-0.5">
+              {[{ id: 'aktiv', label: 'Aktiv' }, { id: 'inaktiv', label: 'Inaktiv' }].map(s => (
+                <label key={s.id} onClick={() => set('status', s.id)}
+                  className={`flex-1 text-center px-3 py-2 rounded-lg border cursor-pointer text-[12.5px] font-medium transition-colors select-none ${
+                    form.status === s.id
+                      ? (s.id === 'aktiv' ? 'bg-[#e6f1ee] border-[#4a8a7a] text-[#2e5a4d]' : 'bg-ink-50 border-ink-300 text-ink-600')
+                      : 'bg-white border-line text-ink-500 hover:border-line-strong'}`}>
+                  {s.label}
+                </label>
+              ))}
+            </div>
+          </Field>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {[['Technische Verantwortung', 'tech_verantwortung'], ['Fachliche Verantwortung', 'fach_verantwortung']].map(([lbl, key]) => (
+              <Field key={key} label={lbl}>
+                {rollen.length === 0
+                  ? <p className="text-[12px] text-ink-300 italic mt-1">Keine Rollen konfiguriert. Bitte in Einstellungen → Richtlinien → Verantwortung anlegen.</p>
+                  : <div className="flex flex-wrap gap-2 mt-0.5">
+                      {rollen.map(r => {
+                        const checked = (form[key] || []).includes(r);
+                        return (
+                          <label key={r} onClick={() => toggleList(key, r)}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer transition-colors text-[12.5px] font-medium select-none ${checked ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-line text-ink-500 hover:border-line-strong'}`}>
+                            {r}
+                          </label>
+                        );
+                      })}
+                    </div>
+                }
+              </Field>
+            ))}
+          </div>
+          <Field label="KI-Anbieter / KI-Betreiber" hint="Besteht für dieses Asset eine Rolle als KI-Anbieter oder KI-Betreiber?">
+            <div className="flex gap-2 mt-0.5">
+              {[{ id: 'nein', label: 'Nein' }, { id: 'ja', label: 'Ja' }].map(k => (
+                <label key={k.id} onClick={() => set('ki_rolle', k.id)}
+                  className={`flex-1 text-center px-3 py-2 rounded-lg border cursor-pointer text-[12.5px] font-medium transition-colors select-none ${form.ki_rolle === k.id ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-line text-ink-500 hover:border-line-strong'}`}>
+                  {k.label}
+                </label>
+              ))}
+            </div>
+          </Field>
+        </div>
+      )}
+
+      {tab === 'schutzbedarf' && (
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <SchutzRow label="Vertraulichkeit" field="vertraulichkeit"/>
+            <SchutzRow label="Integrität"      field="integritaet"/>
+            <SchutzRow label="Verfügbarkeit"   field="verfuegbarkeit"/>
+            <SchutzRow label="Authentizität"   field="authentizitaet"/>
+          </div>
+          <Field label="Datenschutz">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-0.5">
+              {DATENSCHUTZ_OPTS.map(o => (
+                <label key={o.id} onClick={() => set('datenschutz', o.id)}
+                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors text-[12.5px] font-medium select-none ${form.datenschutz === o.id ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-line text-ink-500 hover:border-line-strong'}`}>
+                  <span className={`w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${form.datenschutz === o.id ? 'border-white bg-white' : 'border-ink-300'}`}>
+                    {form.datenschutz === o.id && <span className="w-1.5 h-1.5 rounded-full bg-brand-600"/>}
+                  </span>
+                  {o.label}
+                </label>
+              ))}
+            </div>
+          </Field>
+          <div className="pt-4 border-t border-line space-y-3">
+            <div>
+              <span className="lbl">Gesamtschutzbedarf — Methode</span>
+              <div className="flex gap-2 mt-1">
+                {[{ id: 'maximum', label: 'Maximalprinzip' }, { id: 'vererbung', label: 'Vererbung' }].map(m => (
+                  <label key={m.id} onClick={() => set('gesamtschutzbedarf_methode', m.id)}
+                    className={`flex-1 text-center px-3 py-2 rounded-lg border cursor-pointer text-[12.5px] font-medium transition-colors select-none ${form.gesamtschutzbedarf_methode === m.id ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-line text-ink-500 hover:border-line-strong'}`}>
+                    {m.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            {form.gesamtschutzbedarf_methode === 'maximum' && (
+              <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-ink-50 border border-line">
+                <span className="text-[12.5px] text-ink-500">Berechneter Gesamtschutzbedarf:</span>
+                <SchutzBadge level={gesamtschutz}/>
+              </div>
+            )}
+            {form.gesamtschutzbedarf_methode === 'vererbung' && (
+              <div>
+                <span className="lbl">Gesamtschutzbedarf (manuell setzen)</span>
+                <div className="flex gap-2 mt-0.5">
+                  {SCHUTZ_STUFEN.map(s => {
+                    const c = SCHUTZ_COLORS[s]; const active = (form.gesamtschutzbedarf_manuell || 'niedrig') === s;
+                    return (
+                      <label key={s} onClick={() => set('gesamtschutzbedarf_manuell', s)}
+                        className="flex-1 text-center px-2 py-2 rounded-lg border cursor-pointer text-[12px] font-medium transition-colors select-none"
+                        style={active ? { background: c.bg, borderColor: c.dot, color: c.fg } : { background: '#fff', borderColor: 'var(--line)', color: 'var(--ink-500)' }}>
+                        {c.label}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+          <Field label="Bemerkungen">
+            <textarea className="field" rows={3} value={form.bemerkungen || ''} onChange={e => set('bemerkungen', e.target.value)} placeholder="Optionale Bemerkungen zum Schutzbedarf…"/>
+          </Field>
+        </div>
+      )}
+
+      {tab === 'referenzen' && (
+        <div className="py-10 text-center">
+          <div className="w-10 h-10 mx-auto mb-3 rounded-xl bg-ink-50 flex items-center justify-center text-ink-300">
+            <Icon name="link" cls="w-5 h-5"/>
+          </div>
+          <p className="text-[14px] font-medium text-ink-900 mb-1">Keine Referenzen</p>
+          <p className="text-[12.5px] text-ink-400">Referenzen auf andere Objekte können hier hinterlegt werden.</p>
+        </div>
+      )}
+
+      {tab === 'anhaenge' && (
+        <div className="space-y-4">
+          <label className="block cursor-pointer">
+            <div className="border-2 border-dashed border-line rounded-xl p-6 text-center hover:border-petrol-400 hover:bg-[#f0fafb] transition-colors">
+              <Icon name="paperclip" cls="w-6 h-6 mx-auto mb-2 text-ink-300"/>
+              <p className="text-[13px] font-medium text-ink-700">{pdfLoading ? 'Wird geladen…' : 'PDF-Dateien hier ablegen oder klicken'}</p>
+              <p className="text-[11.5px] text-ink-400 mt-1">Nur PDF · max. 4 MB pro Datei</p>
+            </div>
+            <input type="file" accept=".pdf" multiple className="hidden" onChange={handlePdf}/>
+          </label>
+          {(form.anhaenge || []).length > 0 && (
+            <div className="card divide-y divide-line overflow-hidden">
+              {(form.anhaenge || []).map((a, i) => (
+                <div key={i} className="flex items-center gap-3 px-4 py-3">
+                  <Icon name="file-text" cls="w-4 h-4 text-ink-400 flex-shrink-0"/>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-medium text-ink-900 truncate">{a.name}</p>
+                    <p className="text-[11px] text-ink-400">{(a.size / 1024).toFixed(1)} KB</p>
+                  </div>
+                  <button onClick={() => removeAnhang(i)} className="p-1.5 rounded text-ink-300 hover:text-[#a13d36] hover:bg-rose-50 transition-colors">
+                    <Icon name="x" cls="w-3.5 h-3.5"/>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {(form.anhaenge || []).length === 0 && !pdfLoading && (
+            <p className="text-[12.5px] text-ink-300 text-center italic">Noch keine Anhänge.</p>
+          )}
+        </div>
+      )}
+    </Modal>
+  );
+};
+
+const AssetDetailPanel = ({ asset, onEdit, onClose, canEdit }) => {
+  const [tab, setTab] = useState('allgemein');
+  const gesamtschutz  = calcGesamtschutz(asset);
+
+  const DET_TABS = [
+    { id: 'allgemein',    label: 'Allgemein'    },
+    { id: 'schutzbedarf', label: 'Schutzbedarf' },
+    { id: 'referenzen',   label: 'Referenzen'   },
+    { id: 'anhaenge',     label: `Anhänge${(asset.anhaenge || []).length ? ` (${asset.anhaenge.length})` : ''}` },
+  ];
+
+  return (
+    <Modal title={asset.asset_id} subtitle={asset.titel} onClose={onClose} size="lg"
+      footer={<><button onClick={onClose} className="btn btn-ghost">Schließen</button>{canEdit && <button onClick={onEdit} className="btn btn-primary"><Icon name="edit" cls="w-3.5 h-3.5"/> Bearbeiten</button>}</>}>
+      <div className="flex gap-1 border-b border-line -mx-6 px-6 mb-5">
+        {DET_TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`px-4 py-2 text-[13px] font-medium border-b-2 transition-colors -mb-px ${tab === t.id ? 'border-petrol-500 text-petrol-600' : 'border-transparent text-ink-400 hover:text-ink-900'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'allgemein' && (
+        <div className="space-y-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1 min-w-0">
+              <p className="text-[17px] font-semibold text-ink-900 leading-tight">{asset.titel}</p>
+              {asset.beschreibung && <p className="text-[13px] text-ink-500 leading-relaxed">{asset.beschreibung}</p>}
+            </div>
+            <span className={`flex-shrink-0 text-[11.5px] font-medium px-2.5 py-1 rounded-full border ${asset.status === 'aktiv' ? 'bg-[#e6f1ee] border-[#4a8a7a] text-[#2e5a4d]' : 'bg-ink-50 border-ink-200 text-ink-500'}`}>
+              {asset.status === 'aktiv' ? 'Aktiv' : 'Inaktiv'}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 pt-2 border-t border-line">
+            {[['Technische Verantwortung', 'tech_verantwortung'], ['Fachliche Verantwortung', 'fach_verantwortung']].map(([lbl, key]) => (
+              <div key={key}>
+                <span className="lbl">{lbl}</span>
+                <div className="flex flex-wrap gap-1.5 mt-0.5">
+                  {(asset[key] || []).length === 0
+                    ? <span className="text-[13px] text-ink-400">—</span>
+                    : (asset[key] || []).map(r => (
+                      <span key={r} className="inline-flex items-center gap-1 px-2 py-0.5 bg-ink-50 border border-line rounded text-[12px] text-ink-700">
+                        <Icon name="user" cls="w-3 h-3 text-ink-400"/>{r}
+                      </span>
+                    ))
+                  }
+                </div>
+              </div>
+            ))}
+            <div>
+              <span className="lbl">KI-Anbieter / KI-Betreiber</span>
+              <span className={`text-[13px] font-medium ${asset.ki_rolle === 'ja' ? 'text-petrol-600' : 'text-ink-400'}`}>
+                {asset.ki_rolle === 'ja' ? 'Ja' : 'Nein'}
+              </span>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-6 pt-4 border-t border-line">
+            <div><span className="lbl">Erstellt</span><p className="text-[13px] text-ink-700 font-mono">{fmtDateTime(asset.erstellt_am)}</p></div>
+            <div><span className="lbl">Zuletzt geändert</span><p className="text-[13px] text-ink-700 font-mono">{fmtDateTime(asset.aktualisiert_am)}</p></div>
+          </div>
+        </div>
+      )}
+
+      {tab === 'schutzbedarf' && (
+        <div className="space-y-5">
+          <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+            {[['Vertraulichkeit','vertraulichkeit'],['Integrität','integritaet'],['Verfügbarkeit','verfuegbarkeit'],['Authentizität','authentizitaet']].map(([lbl,field]) => (
+              <div key={field}><span className="lbl">{lbl}</span><SchutzBadge level={asset[field]}/></div>
+            ))}
+          </div>
+          <div className="pt-4 border-t border-line">
+            <span className="lbl">Datenschutz</span>
+            <p className="text-[13.5px] text-ink-900 font-medium mt-0.5">{DATENSCHUTZ_OPTS.find(o => o.id === asset.datenschutz)?.label || '—'}</p>
+          </div>
+          <div className="pt-4 border-t border-line">
+            <span className="lbl">Gesamtschutzbedarf</span>
+            <p className="text-[11px] text-ink-400 mb-1.5">{asset.gesamtschutzbedarf_methode === 'maximum' ? 'Maximalprinzip' : 'Vererbung'}</p>
+            <SchutzBadge level={gesamtschutz}/>
+          </div>
+          {asset.bemerkungen && (
+            <div className="pt-4 border-t border-line">
+              <span className="lbl">Bemerkungen</span>
+              <p className="text-[13px] text-ink-700 leading-relaxed mt-0.5">{asset.bemerkungen}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'referenzen' && (
+        <div className="py-10 text-center">
+          <div className="w-10 h-10 mx-auto mb-3 rounded-xl bg-ink-50 flex items-center justify-center text-ink-300">
+            <Icon name="link" cls="w-5 h-5"/>
+          </div>
+          <p className="text-[14px] font-medium text-ink-900 mb-1">Keine Referenzen</p>
+          <p className="text-[12.5px] text-ink-400">Referenzen auf andere Objekte können hier hinterlegt werden.</p>
+        </div>
+      )}
+
+      {tab === 'anhaenge' && (
+        <div className="space-y-3">
+          {(asset.anhaenge || []).length === 0
+            ? <div className="py-10 text-center"><Icon name="paperclip" cls="w-8 h-8 mx-auto mb-2 text-ink-200"/><p className="text-[13px] text-ink-400">Keine Anhänge vorhanden.</p></div>
+            : <div className="card divide-y divide-line overflow-hidden">
+                {(asset.anhaenge || []).map((a, i) => (
+                  <div key={i} className="flex items-center gap-3 px-4 py-3">
+                    <Icon name="file-text" cls="w-4 h-4 text-ink-400 flex-shrink-0"/>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-medium text-ink-900 truncate">{a.name}</p>
+                      <p className="text-[11px] text-ink-400">{(a.size / 1024).toFixed(1)} KB</p>
+                    </div>
+                    <button onClick={() => { const el = document.createElement('a'); el.href = a.data; el.download = a.name; el.click(); }}
+                      className="btn btn-outline btn-sm"><Icon name="download" cls="w-3.5 h-3.5"/> Herunterladen</button>
+                  </div>
+                ))}
+              </div>
+          }
+        </div>
+      )}
+    </Modal>
+  );
+};
+
+const AssetsView = ({ assets, onCreate, onView, onEdit, onDelete, config, canEdit, canDelete }) => {
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('alle');
+
+  const filtered = assets.filter(a => {
+    const q = search.toLowerCase();
+    const matchS = !q || a.asset_id.toLowerCase().includes(q) || a.titel.toLowerCase().includes(q) || (a.beschreibung || '').toLowerCase().includes(q);
+    const matchF = statusFilter === 'alle' || a.status === statusFilter;
+    return matchS && matchF;
+  }).sort((a, b) => a.asset_id.localeCompare(b.asset_id));
+
+  const hasFilter = search || statusFilter !== 'alle';
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-[28px] font-medium text-ink-900 tracking-tight leading-none">Assets</h1>
+          <p className="text-[13px] text-ink-400 mt-2">Schutzobjekte erfassen und verwalten.</p>
+        </div>
+        {canEdit && <button onClick={onCreate} className="btn btn-primary"><Icon name="plus" cls="w-3.5 h-3.5"/> Neues Asset</button>}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <StatCard label="Assets gesamt"       value={assets.length}                                   accent="black"  icon="layers"/>
+        <StatCard label="Aktiv"               value={assets.filter(a => a.status === 'aktiv').length} accent="petrol" icon="check"/>
+        <StatCard label="Schutzbedarf Hoch"   value={assets.filter(a => calcGesamtschutz(a) === 'hoch').length} accent="red" icon="shield"/>
+      </div>
+
+      <div className="toolbar-scroll"><div className="toolbar">
+        <label className={`toolbar-seg seg-search ${search ? 'is-active' : ''}`}>
+          <Icon name="search" cls="seg-ico"/>
+          <input placeholder="Suche nach ID, Titel, Beschreibung…" value={search} onChange={e => setSearch(e.target.value)}/>
+        </label>
+        <label className={`toolbar-seg has-select ${statusFilter !== 'alle' ? 'is-active' : ''}`} style={{ flex: '1 1 0', minWidth: 0 }}>
+          <Icon name="check" cls="seg-ico"/>
+          <span className="seg-label">Status</span>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ flex: 1, minWidth: 0 }}>
+            <option value="alle">Alle</option>
+            <option value="aktiv">Aktiv</option>
+            <option value="inaktiv">Inaktiv</option>
+          </select>
+        </label>
+        {hasFilter && (
+          <button onClick={() => { setSearch(''); setStatusFilter('alle'); }} className="toolbar-reset">
+            <Icon name="x" cls="w-3.5 h-3.5"/> Zurücksetzen
+          </button>
+        )}
+        <div className="toolbar-count">
+          {hasFilter && <span className="count-dot"/>}
+          <span><b>{filtered.length}</b> von {assets.length}</span>
+        </div>
+      </div></div>
+
+      <div className="card overflow-x-auto shadow-soft">
+        {filtered.length === 0 ? (
+          <div className="px-12 py-20 text-center">
+            <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-ink-50 flex items-center justify-center text-ink-300">
+              <Icon name={hasFilter ? 'search' : 'layers'} cls="w-5 h-5"/>
+            </div>
+            <p className="text-[15px] font-medium text-ink-900 mb-1">{hasFilter ? 'Keine Treffer' : 'Noch keine Assets'}</p>
+            <p className="text-[13px] text-ink-400 mb-5">{hasFilter ? 'Passe die Filter an oder setze sie zurück.' : 'Lege dein erstes Schutzobjekt an.'}</p>
+            {!hasFilter && canEdit && <button onClick={onCreate} className="btn btn-primary"><Icon name="plus" cls="w-3.5 h-3.5"/> Neues Asset</button>}
+          </div>
+        ) : (
+          <table className="data-table" style={{ minWidth: '780px' }}>
+            <thead><tr>
+              <th style={{ width: '110px' }}>ID</th>
+              <th>Titel</th>
+              <th style={{ width: '100px' }}>Status</th>
+              <th style={{ width: '130px' }}>Gesamtschutz</th>
+              <th style={{ width: '60px' }}></th>
+            </tr></thead>
+            <tbody>
+              {filtered.map(a => {
+                const gsb = calcGesamtschutz(a);
+                return (
+                  <tr key={a.id} className="row-clickable" onClick={() => onView(a)}>
+                    <td><span className="id-pill">{a.asset_id}</span></td>
+                    <td>
+                      <p className="text-[13.5px] text-ink-900 font-medium leading-snug">{a.titel}</p>
+                      {a.beschreibung && <p className="text-[11.5px] text-ink-400 mt-0.5 line-clamp-2">{a.beschreibung}</p>}
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        {[...(a.tech_verantwortung||[]), ...(a.fach_verantwortung||[])].filter((v,i,arr)=>arr.indexOf(v)===i).map(r=>(
+                          <span key={r} className="tag">{r}</span>
+                        ))}
+                        {a.ki_rolle === 'ja' && <span className="pill-crit"><Icon name="shield" cls="w-2.5 h-2.5"/>KI</span>}
+                      </div>
+                    </td>
+                    <td><span className={`text-[11.5px] font-medium px-2.5 py-1 rounded-full border ${a.status === 'aktiv' ? 'bg-[#e6f1ee] border-[#4a8a7a] text-[#2e5a4d]' : 'bg-ink-50 border-ink-200 text-ink-500'}`}>{a.status === 'aktiv' ? 'Aktiv' : 'Inaktiv'}</span></td>
+                    <td><SchutzBadge level={gsb}/></td>
+                    {(canEdit || canDelete) && <td onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center gap-0.5 justify-end">
+                        {canEdit && <button onClick={() => onEdit(a)} className="p-1.5 rounded-md text-ink-400 hover:text-ink-900 hover:bg-ink-50 transition-colors" title="Bearbeiten"><Icon name="edit" cls="w-3.5 h-3.5"/></button>}
+                        {canDelete && <button onClick={() => onDelete(a.id)} className="p-1.5 rounded-md text-ink-400 hover:text-[#a13d36] hover:bg-rose-50 transition-colors" title="Löschen"><Icon name="trash" cls="w-3.5 h-3.5"/></button>}
+                      </div>
+                    </td>}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // ── BenutzerView ────────────────────────────────────────────────────────────
 const BenutzerForm = ({ initial, onSave, onClose, currentUserId }) => {
   const isEdit = !!initial?.id;
@@ -2372,6 +2882,8 @@ const App = () => {
   const [anforderungDetail, setAnforderungDetail] = useState(null);
   const [richtlinieModal, setRichtlinieModal] = useState(null);
   const [richtlinieDetail, setRichtlinieDetail] = useState(null);
+  const [assetModal, setAssetModal] = useState(null);
+  const [assetDetail, setAssetDetail] = useState(null);
   const [syncStatus, setSyncStatus] = useState('idle');
   const gistLoadedRef = useRef(false);
   const saveTimerRef  = useRef(null);
@@ -2503,8 +3015,25 @@ const App = () => {
   const handleConfigChange  = (newConfig) => setData(d => ({ ...d, config: newConfig }));
   const handleWelcomeChange = (text) => setData(d => ({ ...d, config: { ...(d.config || DEFAULT_CONFIG), welcomeText: text } }));
 
+  // ── Assets CRUD ──
+  const createAsset = (form) => {
+    const now = nowISO();
+    setData(d => ({ ...d, assets: [...(d.assets || []), { ...form, id: uuid(), erstellt_am: now, aktualisiert_am: now }] }));
+    setAssetModal(null);
+  };
+  const updateAsset = (form) => {
+    setData(d => ({ ...d, assets: (d.assets || []).map(a => a.id === form.id ? { ...a, ...form, aktualisiert_am: nowISO() } : a) }));
+    setAssetModal(null);
+    setAssetDetail(prev => prev?.id === form.id ? { ...prev, ...form, aktualisiert_am: nowISO() } : prev);
+  };
+  const deleteAsset = (id) => {
+    if (!confirm('Asset wirklich löschen?')) return;
+    setData(d => ({ ...d, assets: (d.assets || []).filter(a => a.id !== id) }));
+  };
+
   const anf     = data.anforderungen || [];
   const rl      = data.richtlinien  || [];
+  const assets  = data.assets || [];
   const users   = data.users || [];
   const cfg     = getConfig(data);
   const isAdmin   = session?.role === 'admin';
@@ -2513,8 +3042,9 @@ const App = () => {
 
   const navItems = [
     { id: 'start',         label: 'Start',               icon: 'home'   },
-    { id: 'anforderungen', label: 'Anforderungen',        icon: 'list',  count: anf.length },
-    { id: 'richtlinien',   label: 'Richtlinien',          icon: 'book',  count: rl.length  },
+    { id: 'anforderungen', label: 'Anforderungen',        icon: 'list',  count: anf.length    },
+    { id: 'richtlinien',   label: 'Richtlinien',          icon: 'book',  count: rl.length     },
+    { id: 'assets',        label: 'Assets',               icon: 'layers',count: assets.length },
   ];
 
   if (!session) return (
@@ -2661,6 +3191,15 @@ const App = () => {
               onDelete={deleteRichtlinie}
             />
           )}
+          {view === 'assets' && (
+            <AssetsView
+              assets={assets} config={cfg} canEdit={canEdit} canDelete={canDelete}
+              onCreate={() => setAssetModal('new')}
+              onView={a => setAssetDetail(a)}
+              onEdit={a => setAssetModal(a)}
+              onDelete={deleteAsset}
+            />
+          )}
         </div>
       </main>
 
@@ -2702,10 +3241,29 @@ const App = () => {
         />
       )}
 
+      {/* Asset Form */}
+      {assetModal && (
+        <AssetForm
+          initial={assetModal === 'new' ? null : assetModal}
+          onSave={assetModal === 'new' ? createAsset : updateAsset}
+          onClose={() => setAssetModal(null)}
+          config={cfg}
+        />
+      )}
+
+      {/* Asset Detail */}
+      {assetDetail && (
+        <AssetDetailPanel
+          asset={assetDetail} canEdit={canEdit}
+          onEdit={() => { setAssetModal(assetDetail); setAssetDetail(null); }}
+          onClose={() => setAssetDetail(null)}
+        />
+      )}
+
       {showSettings && (
         <EinstellungenModal
           data={data}
-          onImport={newData => { setData({ anforderungen: newData.anforderungen || [], richtlinien: newData.richtlinien || [], users: newData.users || [], config: newData.config || DEFAULT_CONFIG }); saveData(newData); setShowSettings(false); }}
+          onImport={newData => { setData({ anforderungen: newData.anforderungen || [], richtlinien: newData.richtlinien || [], assets: newData.assets || [], users: newData.users || [], config: newData.config || DEFAULT_CONFIG }); saveData(newData); setShowSettings(false); }}
           onClose={() => setShowSettings(false)}
           syncStatus={syncStatus}
           onConnectGist={handleConnectGist}
