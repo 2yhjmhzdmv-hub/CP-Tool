@@ -2288,7 +2288,6 @@ const DATENSCHUTZ_OPTS = [
 
 const calcGesamtschutz = (a) => {
   if (!a) return 'niedrig';
-  if (a.gesamtschutzbedarf_methode === 'vererbung') return a.gesamtschutzbedarf_manuell || 'niedrig';
   const vals = [a.vertraulichkeit, a.integritaet, a.verfuegbarkeit, a.authentizitaet]
     .map(v => SCHUTZ_STUFEN.indexOf(v || 'niedrig'));
   return SCHUTZ_STUFEN[Math.max(0, ...vals)];
@@ -2314,7 +2313,6 @@ const AssetForm = ({ initial, onSave, onClose, config }) => {
     tech_verantwortung: [], fach_verantwortung: [], ki_rolle: 'nein',
     vertraulichkeit: 'niedrig', integritaet: 'niedrig', verfuegbarkeit: 'niedrig', authentizitaet: 'niedrig',
     datenschutz: 'nicht_klassifiziert',
-    gesamtschutzbedarf_methode: 'maximum', gesamtschutzbedarf_manuell: 'niedrig',
     bemerkungen: '', anhaenge: [],
   });
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -2462,41 +2460,12 @@ const AssetForm = ({ initial, onSave, onClose, config }) => {
               ))}
             </div>
           </Field>
-          <div className="pt-4 border-t border-line space-y-3">
-            <div>
-              <span className="lbl">Gesamtschutzbedarf — Methode</span>
-              <div className="flex gap-2 mt-1">
-                {[{ id: 'maximum', label: 'Maximalprinzip' }, { id: 'vererbung', label: 'Vererbung' }].map(m => (
-                  <label key={m.id} onClick={() => set('gesamtschutzbedarf_methode', m.id)}
-                    className={`flex-1 text-center px-3 py-2 rounded-lg border cursor-pointer text-[12.5px] font-medium transition-colors select-none ${form.gesamtschutzbedarf_methode === m.id ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-line text-ink-500 hover:border-line-strong'}`}>
-                    {m.label}
-                  </label>
-                ))}
-              </div>
+          <div className="pt-4 border-t border-line">
+            <span className="lbl">Gesamtschutzbedarf (Maximalprinzip)</span>
+            <div className="flex items-center gap-3 px-3 py-2.5 mt-1 rounded-lg bg-ink-50 border border-line">
+              <span className="text-[12.5px] text-ink-500">Ergibt sich aus Vertraulichkeit, Integrität, Verfügbarkeit und Authentizität:</span>
+              <SchutzBadge level={gesamtschutz}/>
             </div>
-            {form.gesamtschutzbedarf_methode === 'maximum' && (
-              <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-ink-50 border border-line">
-                <span className="text-[12.5px] text-ink-500">Berechneter Gesamtschutzbedarf:</span>
-                <SchutzBadge level={gesamtschutz}/>
-              </div>
-            )}
-            {form.gesamtschutzbedarf_methode === 'vererbung' && (
-              <div>
-                <span className="lbl">Gesamtschutzbedarf (manuell setzen)</span>
-                <div className="flex gap-2 mt-0.5">
-                  {SCHUTZ_STUFEN.map(s => {
-                    const c = SCHUTZ_COLORS[s]; const active = (form.gesamtschutzbedarf_manuell || 'niedrig') === s;
-                    return (
-                      <label key={s} onClick={() => set('gesamtschutzbedarf_manuell', s)}
-                        className="flex-1 text-center px-2 py-2 rounded-lg border cursor-pointer text-[12px] font-medium transition-colors select-none"
-                        style={active ? { background: c.bg, borderColor: c.dot, color: c.fg } : { background: '#fff', borderColor: 'var(--line)', color: 'var(--ink-500)' }}>
-                        {c.label}
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </div>
           <Field label="Bemerkungen">
             <textarea className="field" rows={3} value={form.bemerkungen || ''} onChange={e => set('bemerkungen', e.target.value)} placeholder="Optionale Bemerkungen zum Schutzbedarf…"/>
@@ -2625,9 +2594,8 @@ const AssetDetailPanel = ({ asset, onEdit, onClose, canEdit }) => {
             <p className="text-[13.5px] text-ink-900 font-medium mt-0.5">{DATENSCHUTZ_OPTS.find(o => o.id === asset.datenschutz)?.label || '—'}</p>
           </div>
           <div className="pt-4 border-t border-line">
-            <span className="lbl">Gesamtschutzbedarf</span>
-            <p className="text-[11px] text-ink-400 mb-1.5">{asset.gesamtschutzbedarf_methode === 'maximum' ? 'Maximalprinzip' : 'Vererbung'}</p>
-            <SchutzBadge level={gesamtschutz}/>
+            <span className="lbl">Gesamtschutzbedarf (Maximalprinzip)</span>
+            <div className="mt-1"><SchutzBadge level={gesamtschutz}/></div>
           </div>
           {asset.bemerkungen && (
             <div className="pt-4 border-t border-line">
