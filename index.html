@@ -2226,36 +2226,43 @@ const StartseiteView = ({ session, data, onEditWelcome, isAdmin }) => {
   const rl  = data?.richtlinien  || [];
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-[32px] font-medium text-ink-900 tracking-tight leading-none">
-          Hallo, {session.name}!
-        </h1>
-        {editing ? (
-          <div className="mt-4 space-y-2">
-            <textarea className="field w-full" rows={3} value={draft}
-              onChange={e => setDraft(e.target.value)}
-              placeholder="Willkommenstext eingeben…"/>
-            <div className="flex gap-2">
-              <button onClick={() => { onEditWelcome(draft); setEditing(false); }} className="btn btn-primary">Speichern</button>
-              <button onClick={() => setEditing(false)} className="btn btn-ghost">Abbrechen</button>
+    <div className="space-y-6">
+      {/* Header — gleiche Struktur wie Anforderungen / Richtlinien */}
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-[28px] font-medium text-ink-900 tracking-tight leading-none">
+            Hallo, {session.name}!
+          </h1>
+          {!editing && (
+            <div className="mt-2 flex items-start gap-2">
+              {welcomeText
+                ? <p className="text-[13px] text-ink-400 leading-relaxed flex-1">{welcomeText}</p>
+                : <p className="text-[13px] text-ink-300 italic flex-1">Noch kein Willkommenstext konfiguriert.</p>
+              }
+              {isAdmin && (
+                <button onClick={() => { setDraft(welcomeText); setEditing(true); }}
+                  className="p-1.5 rounded-md text-ink-300 hover:text-ink-700 hover:bg-ink-100 transition-colors flex-shrink-0 mt-0.5">
+                  <Icon name="edit" cls="w-3.5 h-3.5"/>
+                </button>
+              )}
             </div>
-          </div>
-        ) : (
-          <div className="mt-3 flex items-start gap-3">
-            {welcomeText
-              ? <p className="text-[15px] text-ink-500 leading-relaxed flex-1">{welcomeText}</p>
-              : <p className="text-[14px] text-ink-300 italic flex-1">Noch kein Willkommenstext konfiguriert.</p>
-            }
-            {isAdmin && <button onClick={() => { setDraft(welcomeText); setEditing(true); }}
-              className="p-1.5 rounded-md text-ink-300 hover:text-ink-700 hover:bg-ink-100 transition-colors flex-shrink-0">
-              <Icon name="edit" cls="w-3.5 h-3.5"/>
-            </button>}
-          </div>
-        )}
+          )}
+          {editing && (
+            <div className="mt-3 space-y-2">
+              <textarea className="field w-full" rows={3} value={draft}
+                onChange={e => setDraft(e.target.value)}
+                placeholder="Willkommenstext eingeben…"/>
+              <div className="flex gap-2">
+                <button onClick={() => { onEditWelcome(draft); setEditing(false); }} className="btn btn-primary">Speichern</button>
+                <button onClick={() => setEditing(false)} className="btn btn-ghost">Abbrechen</button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* Stats — gleiche Abstände wie in den anderen Views */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <StatCard label="Anforderungen" value={anf.length} accent="petrol" icon="list"/>
         <StatCard label="Richtlinien"   value={rl.length}  accent="black"  icon="book"/>
       </div>
