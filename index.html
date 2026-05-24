@@ -1971,18 +1971,38 @@ const RichtlinienView = ({ richtlinien, onCreate, onView, onEdit, onDelete, conf
 };
 
 // ── LoginScreen ────────────────────────────────────────────────────────────
-const SetupScreen = ({ onCreate }) => {
-  const [name, setName] = useState('');
-  const [pin, setPin]   = useState('');
-  const [pin2, setPin2] = useState('');
-  const [err, setErr]   = useState('');
-  const handle = async () => {
+const SetupScreen = ({ onCreate, onCloudLoad }) => {
+  const [mode, setMode]   = useState('setup');
+  const [name, setName]   = useState('');
+  const [pin, setPin]     = useState('');
+  const [pin2, setPin2]   = useState('');
+  const [token, setToken] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [err, setErr]     = useState('');
+
+  const handleCreate = async () => {
     if (!name.trim()) return setErr('Bitte einen Namen eingeben.');
     if (pin.length < 4) return setErr('PIN muss mindestens 4 Zeichen haben.');
     if (pin !== pin2) return setErr('PINs stimmen nicht überein.');
     const hashed = await hashPin(pin);
     onCreate({ id: uuid(), name: name.trim(), role: 'admin', pin: hashed });
   };
+
+  const handleCloudLoad = async () => {
+    if (!token.trim()) return setErr('Bitte einen Gist-Token eingeben.');
+    setErr(''); setLoading(true);
+    try {
+      const gistId = await findOrCreateGist(token.trim(), SEED);
+      const loaded  = await loadFromGist(token.trim(), gistId);
+      if (!loaded.users || loaded.users.length === 0) {
+        setErr('Keine Benutzer im Gist gefunden. Bitte Ersteinrichtung durchführen.');
+        setLoading(false); return;
+      }
+      onCloudLoad(token.trim(), loaded);
+    } catch (e) { setErr('Verbindung fehlgeschlagen: ' + e.message); }
+    setLoading(false);
+  };
+
   return (
     <div className="min-h-screen bg-[#eef3f7] flex items-center justify-center p-6">
       <div className="card shadow-soft w-full max-w-sm p-8 space-y-6">
@@ -1991,28 +2011,54 @@ const SetupScreen = ({ onCreate }) => {
             <Icon name="shield" cls="w-6 h-6 text-white"/>
           </div>
           <div className="text-center">
-            <h1 className="text-[20px] font-semibold text-ink-900">Ersteinrichtung</h1>
-            <p className="text-[13px] text-ink-400 mt-1">Lege den ersten Admin-Benutzer an.</p>
+            <h1 className="text-[20px] font-semibold text-ink-900">
+              {mode === 'setup' ? 'Ersteinrichtung' : 'Cloud-Verbindung'}
+            </h1>
+            <p className="text-[13px] text-ink-400 mt-1">
+              {mode === 'setup' ? 'Lege den ersten Admin-Benutzer an.' : 'Lade vorhandene Daten aus deinem Gist.'}
+            </p>
           </div>
         </div>
-        <div className="space-y-3">
-          <Field label="Name"><input className="field" value={name} onChange={e => setName(e.target.value)} placeholder="Dein Name"/></Field>
-          <Field label="PIN"><input className="field" type="password" value={pin} onChange={e => setPin(e.target.value)} placeholder="Mindestens 4 Zeichen"/></Field>
-          <Field label="PIN bestätigen"><input className="field" type="password" value={pin2} onChange={e => setPin2(e.target.value)} placeholder="PIN wiederholen"/></Field>
-          {err && <p className="text-[12px] text-[#a13d36]">{err}</p>}
-        </div>
-        <button onClick={handle} className="btn btn-primary w-full justify-center">Admin-Konto erstellen</button>
+        {mode === 'setup' ? (
+          <div className="space-y-3">
+            <Field label="Name"><input className="field" value={name} onChange={e => setName(e.target.value)} placeholder="Dein Name"/></Field>
+            <Field label="PIN"><input className="field" type="password" value={pin} onChange={e => setPin(e.target.value)} placeholder="Mindestens 4 Zeichen"/></Field>
+            <Field label="PIN bestätigen"><input className="field" type="password" value={pin2} onChange={e => setPin2(e.target.value)} placeholder="PIN wiederholen"/></Field>
+            {err && <p className="text-[12px] text-[#a13d36]">{err}</p>}
+            <button onClick={handleCreate} className="btn btn-primary w-full justify-center">Admin-Konto erstellen</button>
+            <button onClick={() => { setMode('cloud'); setErr(''); }} className="w-full text-center text-[12.5px] text-ink-400 hover:text-brand-600 transition-colors pt-1">
+              Vorhandene Daten laden (Gist-Token)
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <button onClick={() => { setMode('setup'); setErr(''); }} className="flex items-center gap-1 text-[12.5px] text-ink-400 hover:text-ink-700 transition-colors">
+              <Icon name="chevron-left" cls="w-3.5 h-3.5"/> Zurück
+            </button>
+            <p className="text-[12.5px] text-ink-500">GitHub Personal Access Token (classic) mit Scope <span className="font-mono text-[11px] bg-ink-50 px-1 py-0.5 rounded border border-line">gist</span> eingeben.</p>
+            <Field label="Gist-Token">
+              <input className="field" type="password" value={token}
+                onChange={e => { setToken(e.target.value); setErr(''); }}
+                onKeyDown={e => e.key === 'Enter' && handleCloudLoad()}
+                placeholder="ghp_…"/>
+            </Field>
+            {err && <p className="text-[12px] text-[#a13d36]">{err}</p>}
+            <button onClick={handleCloudLoad} disabled={loading} className="btn btn-primary w-full justify-center">
+              {loading ? 'Verbinde…' : 'Daten laden'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
-const LoginScreen = ({ users, onLogin, onFirstSetup }) => {
+const LoginScreen = ({ users, onLogin, onFirstSetup, onCloudLoad }) => {
   const [selected, setSelected] = useState(null);
   const [pin, setPin]           = useState('');
   const [err, setErr]           = useState('');
 
-  if (!users || users.length === 0) return <SetupScreen onCreate={onFirstSetup}/>;
+  if (!users || users.length === 0) return <SetupScreen onCreate={onFirstSetup} onCloudLoad={onCloudLoad}/>;
 
   const handleLogin = async () => {
     const hashed = await hashPin(pin);
@@ -2281,6 +2327,12 @@ const App = () => {
     handleLogin({ id: user.id, name: user.name, role: user.role });
   };
 
+  const handleCloudLoad = (token, loadedData) => {
+    localStorage.setItem(GIST_TOKEN_KEY, token);
+    saveData(loadedData);
+    setData(loadedData);
+  };
+
   const handleConnectGist = async (token) => {
     localStorage.setItem(GIST_TOKEN_KEY, token);
     localStorage.removeItem(GIST_ID_KEY);
@@ -2373,6 +2425,7 @@ const App = () => {
       users={users}
       onLogin={handleLogin}
       onFirstSetup={handleFirstSetup}
+      onCloudLoad={handleCloudLoad}
     />
   );
 
