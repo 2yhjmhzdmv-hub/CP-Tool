@@ -2254,8 +2254,6 @@ const StartseiteView = ({ session, data, onEditWelcome, isAdmin }) => {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft]     = useState('');
   const welcomeText = data?.config?.welcomeText || '';
-  const anf = data?.anforderungen || [];
-  const rl  = data?.richtlinien  || [];
 
   return (
     <div className="space-y-6">
@@ -2293,11 +2291,6 @@ const StartseiteView = ({ session, data, onEditWelcome, isAdmin }) => {
         </div>
       </div>
 
-      {/* Stats — gleiche Abstände wie in den anderen Views */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <StatCard label="Anforderungen" value={anf.length} accent="petrol" icon="list"/>
-        <StatCard label="Richtlinien"   value={rl.length}  accent="black"  icon="book"/>
-      </div>
     </div>
   );
 };
