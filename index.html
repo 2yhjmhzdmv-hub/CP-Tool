@@ -672,7 +672,11 @@ const VERTRAULICHKEIT = [
 const ANWENDER_OPTIONEN = ['Mitarbeitende', 'Externe Mitarbeitende'];
 
 // ── Storage ────────────────────────────────────────────────────────────────
-const STORAGE_KEY = 'richtlinien-tool-v1';
+const STORAGE_KEY    = 'richtlinien-tool-v1';
+const GIST_TOKEN_KEY = 'richtlinien-gist-token';
+const GIST_ID_KEY    = 'richtlinien-gist-id';
+const GIST_FILENAME  = 'compliance-tool-data.json';
+
 const loadData = () => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -685,6 +689,54 @@ const loadData = () => {
   return null;
 };
 const saveData = data => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+const gistHeaders = token => ({
+  Authorization: `token ${token}`,
+  'Content-Type': 'application/json',
+  Accept: 'application/vnd.github.v3+json',
+});
+
+const loadFromGist = async (token, gistId) => {
+  const res = await fetch(`https://api.github.com/gists/${gistId}`, { headers: gistHeaders(token) });
+  if (!res.ok) throw new Error('Gist nicht erreichbar');
+  const gist = await res.json();
+  const content = gist.files[GIST_FILENAME]?.content;
+  if (!content) throw new Error('Datei nicht im Gist gefunden');
+  const parsed = JSON.parse(content);
+  if (!parsed.richtlinien) parsed.richtlinien = [];
+  return parsed;
+};
+
+const saveToGist = async (token, gistId, data) => {
+  const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+    method: 'PATCH',
+    headers: gistHeaders(token),
+    body: JSON.stringify({ files: { [GIST_FILENAME]: { content: JSON.stringify(data, null, 2) } } }),
+  });
+  if (!res.ok) throw new Error('Speichern fehlgeschlagen');
+};
+
+const findOrCreateGist = async (token, seedData) => {
+  const storedId = localStorage.getItem(GIST_ID_KEY);
+  if (storedId) return storedId;
+  const listRes = await fetch('https://api.github.com/gists?per_page=100', { headers: gistHeaders(token) });
+  if (!listRes.ok) throw new Error('Gist-Liste nicht abrufbar');
+  const gists = await listRes.json();
+  const existing = gists.find(g => g.description === 'Compliance Tool Daten' && g.files[GIST_FILENAME]);
+  if (existing) {
+    localStorage.setItem(GIST_ID_KEY, existing.id);
+    return existing.id;
+  }
+  const createRes = await fetch('https://api.github.com/gists', {
+    method: 'POST',
+    headers: gistHeaders(token),
+    body: JSON.stringify({ description: 'Compliance Tool Daten', public: false, files: { [GIST_FILENAME]: { content: JSON.stringify(seedData, null, 2) } } }),
+  });
+  if (!createRes.ok) throw new Error('Gist konnte nicht erstellt werden');
+  const created = await createRes.json();
+  localStorage.setItem(GIST_ID_KEY, created.id);
+  return created.id;
+};
 
 // ── Seed Data ──────────────────────────────────────────────────────────────
 const SEED = { anforderungen: [  {
@@ -807,8 +859,12 @@ const Modal = ({ title, subtitle, onClose, size = 'md', children, footer }) => {
 };
 
 // ── Einstellungen Modal ────────────────────────────────────────────────────
-const EinstellungenModal = ({ data, onImport, onClose }) => {
+const EinstellungenModal = ({ data, onImport, onClose, syncStatus, onConnectGist, onDisconnectGist }) => {
   const fileRef = useRef();
+  const [tokenInput, setTokenInput] = useState('');
+  const [connecting, setConnecting] = useState(false);
+  const hasToken = !!localStorage.getItem(GIST_TOKEN_KEY);
+  const gistId   = localStorage.getItem(GIST_ID_KEY);
 
   const doExport = () => {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -834,9 +890,77 @@ const EinstellungenModal = ({ data, onImport, onClose }) => {
     reader.readAsText(file);
   };
 
+  const doConnect = async () => {
+    if (!tokenInput.trim()) return alert('Bitte einen Token eingeben.');
+    setConnecting(true);
+    try {
+      await onConnectGist(tokenInput.trim());
+      setTokenInput('');
+    } catch (e) {
+      alert('Verbindung fehlgeschlagen: ' + e.message);
+    }
+    setConnecting(false);
+  };
+
+  const syncStatusLabel = {
+    idle:    { text: 'Nicht verbunden',   cls: 'text-ink-400' },
+    syncing: { text: 'Synchronisiere…',   cls: 'text-petrol-600' },
+    synced:  { text: 'Synchronisiert',    cls: 'text-[#2e5a4d]' },
+    error:   { text: 'Fehler beim Sync',  cls: 'text-[#a13d36]' },
+  }[syncStatus] || { text: '—', cls: 'text-ink-400' };
+
   return (
-    <Modal title="Einstellungen" subtitle="Datensicherung und Speicherinformationen" onClose={onClose} size="md">
+    <Modal title="Einstellungen" subtitle="Datensicherung und Cloud-Sync" onClose={onClose} size="md">
       <div className="space-y-6">
+
+        {/* GitHub Sync */}
+        <div>
+          <span className="lbl">GitHub Cloud-Sync</span>
+          <div className="card divide-y divide-line">
+            {hasToken ? (
+              <div className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#4a8a7a]"></span>
+                    <span className="text-[13px] font-medium text-ink-900">Verbunden</span>
+                  </div>
+                  <span className={`text-[12px] font-medium ${syncStatusLabel.cls}`}>{syncStatusLabel.text}</span>
+                </div>
+                {gistId && (
+                  <p className="text-[11px] text-ink-400 font-mono">Gist: {gistId.slice(0,16)}…</p>
+                )}
+                <button onClick={onDisconnectGist} className="btn btn-outline btn-sm text-[#a13d36] border-[#f0b4b4] hover:bg-[#fbeded]">
+                  Verbindung trennen
+                </button>
+              </div>
+            ) : (
+              <div className="p-4 space-y-3">
+                <p className="text-[13px] text-ink-700">
+                  Gib einen GitHub Personal Access Token ein, um deine Daten geräteübergreifend zu synchronisieren.
+                  Der Token benötigt den Scope <span className="font-mono text-[11px] bg-ink-50 px-1 py-0.5 rounded border border-line">gist</span>.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    className="field flex-1"
+                    placeholder="ghp_… oder github_pat_…"
+                    value={tokenInput}
+                    onChange={e => setTokenInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && doConnect()}
+                  />
+                  <button onClick={doConnect} disabled={connecting} className="btn btn-accent btn-sm flex-shrink-0">
+                    {connecting ? 'Verbinde…' : 'Verbinden'}
+                  </button>
+                </div>
+                <p className="text-[11px] text-ink-400">
+                  Token erstellen unter <span className="font-mono">github.com → Settings → Developer settings → Personal access tokens</span>
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Datensicherung */}
         <div>
           <span className="lbl">Datensicherung</span>
           <div className="card divide-y divide-line">
@@ -861,6 +985,8 @@ const EinstellungenModal = ({ data, onImport, onClose }) => {
             </div>
           </div>
         </div>
+
+        {/* Speicherinfo */}
         <div>
           <span className="lbl">Speicher</span>
           <div className="card p-4">
@@ -874,13 +1000,13 @@ const EinstellungenModal = ({ data, onImport, onClose }) => {
             </div>
             <div className="flex items-center justify-between text-[13px] mt-2">
               <span className="text-ink-500">Speicherort</span>
-              <span className="font-mono text-ink-700 text-xs">localStorage</span>
+              <span className={`font-mono text-xs ${hasToken ? 'text-[#2e5a4d]' : 'text-ink-700'}`}>
+                {hasToken ? 'GitHub Gist + localStorage' : 'localStorage (nur lokal)'}
+              </span>
             </div>
-            <p className="text-[11px] text-ink-400 mt-3 leading-relaxed">
-              Daten werden lokal im Browser gespeichert. Für eine dauerhaft sichere Aufbewahrung regelmäßig exportieren.
-            </p>
           </div>
         </div>
+
       </div>
     </Modal>
   );
@@ -1792,8 +1918,59 @@ const App = () => {
   const [anforderungDetail, setAnforderungDetail] = useState(null);
   const [richtlinieModal, setRichtlinieModal] = useState(null);
   const [richtlinieDetail, setRichtlinieDetail] = useState(null);
+  const [syncStatus, setSyncStatus] = useState('idle'); // 'idle'|'syncing'|'synced'|'error'
+  const gistLoadedRef = useRef(false);
+  const saveTimerRef  = useRef(null);
 
-  useEffect(() => saveData(data), [data]);
+  // Load from Gist on mount if token is configured
+  useEffect(() => {
+    const token = localStorage.getItem(GIST_TOKEN_KEY);
+    if (!token) return;
+    setSyncStatus('syncing');
+    (async () => {
+      try {
+        const gistId = await findOrCreateGist(token, data);
+        const gistData = await loadFromGist(token, gistId);
+        gistLoadedRef.current = true;
+        setData(gistData);
+        saveData(gistData);
+        setSyncStatus('synced');
+      } catch { setSyncStatus('error'); }
+    })();
+  }, []);
+
+  // Save locally + debounced Gist sync on every data change
+  useEffect(() => {
+    if (gistLoadedRef.current) { gistLoadedRef.current = false; return; }
+    saveData(data);
+    const token = localStorage.getItem(GIST_TOKEN_KEY);
+    if (!token) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    setSyncStatus('syncing');
+    saveTimerRef.current = setTimeout(async () => {
+      try {
+        const gistId = localStorage.getItem(GIST_ID_KEY);
+        await saveToGist(token, gistId, data);
+        setSyncStatus('synced');
+      } catch { setSyncStatus('error'); }
+    }, 1500);
+  }, [data]);
+
+  const handleConnectGist = async (token) => {
+    localStorage.setItem(GIST_TOKEN_KEY, token);
+    localStorage.removeItem(GIST_ID_KEY);
+    setSyncStatus('syncing');
+    const gistId = await findOrCreateGist(token, data);
+    await saveToGist(token, gistId, data);
+    setSyncStatus('synced');
+  };
+
+  const handleDisconnectGist = () => {
+    if (!confirm('Cloud-Sync trennen? Daten bleiben lokal erhalten.')) return;
+    localStorage.removeItem(GIST_TOKEN_KEY);
+    localStorage.removeItem(GIST_ID_KEY);
+    setSyncStatus('idle');
+  };
 
   // ── Anforderungen CRUD ──
   const createAnforderung = (form) => {
@@ -1880,7 +2057,25 @@ const App = () => {
           ))}
         </nav>
 
-        <div className="px-2 py-3 border-t border-line">
+        <div className="px-2 py-3 border-t border-line space-y-0.5">
+          {sidebarOpen && syncStatus !== 'idle' && (
+            <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg">
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                syncStatus === 'synced'  ? 'bg-[#4a8a7a]' :
+                syncStatus === 'syncing' ? 'bg-petrol-400 animate-pulse' :
+                'bg-[#b53a31]'
+              }`}/>
+              <span className={`text-[11px] font-medium ${
+                syncStatus === 'synced'  ? 'text-[#2e5a4d]' :
+                syncStatus === 'syncing' ? 'text-petrol-600' :
+                'text-[#a13d36]'
+              }`}>{
+                syncStatus === 'synced'  ? 'Synchronisiert' :
+                syncStatus === 'syncing' ? 'Synchronisiere…' :
+                'Sync-Fehler'
+              }</span>
+            </div>
+          )}
           <button onClick={() => setShowSettings(true)} className="nav-item w-full">
             <Icon name="settings" cls="w-3.5 h-3.5 flex-shrink-0"/>
             {sidebarOpen && 'Einstellungen'}
@@ -1957,6 +2152,9 @@ const App = () => {
           data={data}
           onImport={newData => { setData({ anforderungen: newData.anforderungen || [], richtlinien: newData.richtlinien || [] }); saveData(newData); setShowSettings(false); }}
           onClose={() => setShowSettings(false)}
+          syncStatus={syncStatus}
+          onConnectGist={handleConnectGist}
+          onDisconnectGist={handleDisconnectGist}
         />
       )}
     </div>
