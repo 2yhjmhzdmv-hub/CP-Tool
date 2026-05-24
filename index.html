@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Anforderungen</title>
+<title>Compliance-Management [TEST]</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
@@ -495,7 +495,7 @@ const fmtDateTime = d => {
   return dt.toLocaleDateString('de-DE') + ', ' + dt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr';
 };
 
-const KATEGORIEN = {
+const DEFAULT_KATEGORIEN = {
   'Identitäts- und Zugriffsverwaltung (IAM)': [
     'Zugangsrechte',
     'Zugangssteuerung',
@@ -660,9 +660,30 @@ const SCHUTZBEDARF_CONFIG = {
 };
 const DIENSTLEISTUNGSMODELLE = ['SaaS', 'PaaS', 'IaaS', 'IKT-Beratung'];
 
-// ── Richtlinien Constants ──────────────────────────────────────────────────
-const RICHTLINIEN_KATEGORIEN = ['Informationssicherheit', 'BCM', 'Risikomanagement'];
-const RICHTLINIEN_ART = ['Strategie', 'Richtlinie', 'Leitlinie', 'Verfahrensanweisung'];
+// ── Defaults & Config ──────────────────────────────────────────────────────
+const DEFAULT_CONFIG = {
+  anforderungen: {
+    kategorien: DEFAULT_KATEGORIEN,
+  },
+  richtlinien: {
+    kategorien: { 'Informationssicherheit': [], 'BCM': [], 'Risikomanagement': [] },
+    art:      ['Strategie', 'Richtlinie', 'Leitlinie', 'Verfahrensanweisung'],
+    anwender: ['Mitarbeitende', 'Externe Mitarbeitende'],
+    rollen:   [],
+  },
+};
+
+const getConfig = (data) => {
+  const cfg = data?.config || {};
+  return {
+    anfKategorien:    cfg.anforderungen?.kategorien    || DEFAULT_CONFIG.anforderungen.kategorien,
+    rlKategorien:     cfg.richtlinien?.kategorien      || DEFAULT_CONFIG.richtlinien.kategorien,
+    rlArt:            cfg.richtlinien?.art             || DEFAULT_CONFIG.richtlinien.art,
+    rlAnwender:       cfg.richtlinien?.anwender        || DEFAULT_CONFIG.richtlinien.anwender,
+    rlRollen:         cfg.richtlinien?.rollen          || DEFAULT_CONFIG.richtlinien.rollen,
+  };
+};
+
 const VERTRAULICHKEIT = [
   { id: 'K1', label: 'K1 – Öffentlich',          bg: '#e6f4ec', fg: '#1e6b3a', border: '#b4dcc3' },
   { id: 'K2', label: 'K2 – Intern',              bg: '#e6f0fb', fg: '#1a4d8a', border: '#aecbef' },
@@ -677,12 +698,28 @@ const GIST_TOKEN_KEY = 'richtlinien-gist-token';
 const GIST_ID_KEY    = 'richtlinien-gist-id';
 const GIST_FILENAME  = 'compliance-tool-data.json';
 
+const SESSION_KEY = 'compliance-session';
+
+const hashPin = async (pin) => {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pin));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+};
+
+const ROLE_LABELS = { leser: 'Leser', schreiber: 'Schreiber', admin: 'Admin' };
+const ROLE_COLORS = {
+  leser:     'bg-ink-100 text-ink-600 border-line',
+  schreiber: 'bg-petrol-50 text-petrol-700 border-petrol-200',
+  admin:     'bg-brand-50 text-brand-700 border-brand-200',
+};
+
 const loadData = () => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (!parsed.richtlinien) parsed.richtlinien = [];
+      if (!parsed.config)      parsed.config = DEFAULT_CONFIG;
+      if (!parsed.users)       parsed.users  = [];
       return parsed;
     }
   } catch {}
@@ -704,6 +741,8 @@ const loadFromGist = async (token, gistId) => {
   if (!content) throw new Error('Datei nicht im Gist gefunden');
   const parsed = JSON.parse(content);
   if (!parsed.richtlinien) parsed.richtlinien = [];
+  if (!parsed.config)      parsed.config = DEFAULT_CONFIG;
+  if (!parsed.users)       parsed.users  = [];
   return parsed;
 };
 
@@ -739,47 +778,7 @@ const findOrCreateGist = async (token, seedData) => {
 };
 
 // ── Seed Data ──────────────────────────────────────────────────────────────
-const SEED = { anforderungen: [  {
-    id: 'anf-1', anforderung_id: 'ANF-001',
-    kategorie: 'Identitäts- und Zugriffsverwaltung (IAM)', unterkategorie: 'Zugangssteuerung',
-    beschreibung: 'Zugriffe auf kritische Systeme müssen nach dem Least-Privilege-Prinzip vergeben und regelmäßig überprüft werden.',
-    schutzobjektarten: ['Anwendungen & Software', 'Informationswerte', 'Geschäftsprozesse & Funktionen'],
-    schutzbedarf: 'hoch', dienstleistungsmodelle: ['SaaS', 'PaaS', 'IaaS'], kritische_funktionen: true,
-    erstellt_am: '2024-01-10', aktualisiert_am: '2024-01-10',
-  },
-  {
-    id: 'anf-2', anforderung_id: 'ANF-002',
-    kategorie: 'Verschlüsselung und Datenschutz', unterkategorie: 'Datenschutz und Schutz personenbezogener Daten (pbD)',
-    beschreibung: 'Personenbezogene Daten dürfen nur auf Basis einer dokumentierten Rechtsgrundlage verarbeitet werden.',
-    schutzobjektarten: ['Informationswerte', 'Geschäftsprozesse & Funktionen'],
-    schutzbedarf: 'hoch', dienstleistungsmodelle: ['SaaS', 'IKT-Beratung'], kritische_funktionen: true,
-    erstellt_am: '2024-01-10', aktualisiert_am: '2024-01-10',
-  },
-  {
-    id: 'anf-3', anforderung_id: 'ANF-003',
-    kategorie: 'Patch-, Konfigurations- und Schwachstellenmanagement', unterkategorie: 'Patch-Management',
-    beschreibung: 'Sicherheitsupdates für Betriebssysteme und Anwendungen müssen innerhalb von 30 Tagen nach Verfügbarkeit eingespielt werden.',
-    schutzobjektarten: ['Infrastruktur / IKT-Systeme', 'Anwendungen & Software'],
-    schutzbedarf: 'mittel', dienstleistungsmodelle: ['SaaS', 'PaaS', 'IaaS', 'IKT-Beratung'], kritische_funktionen: false,
-    erstellt_am: '2024-02-01', aktualisiert_am: '2024-02-01',
-  },
-  {
-    id: 'anf-4', anforderung_id: 'ANF-004',
-    kategorie: 'Physische Sicherheit und Zutrittsschutz', unterkategorie: 'Physischer Zutritt',
-    beschreibung: 'Serverräume und Rechenzentren müssen gegen unbefugten Zutritt durch Zutrittskontrollsysteme gesichert sein.',
-    schutzobjektarten: ['Infrastruktur / IKT-Systeme', 'Physische Assets'],
-    schutzbedarf: 'mittel', dienstleistungsmodelle: ['IaaS'], kritische_funktionen: true,
-    erstellt_am: '2024-02-15', aktualisiert_am: '2024-02-15',
-  },
-  {
-    id: 'anf-5', anforderung_id: 'ANF-005',
-    kategorie: 'Sicherheitskultur und Schulung', unterkategorie: 'Informationssicherheitsbewusstsein, -ausbildung und -schulung',
-    beschreibung: 'Neue Mitarbeiter müssen vor Aufnahme ihrer Tätigkeit eine Sicherheitsschulung absolvieren.',
-    schutzobjektarten: ['Geschäftsprozesse & Funktionen'],
-    schutzbedarf: 'niedrig', dienstleistungsmodelle: ['SaaS', 'PaaS', 'IaaS', 'IKT-Beratung'], kritische_funktionen: false,
-    erstellt_am: '2024-03-01', aktualisiert_am: '2024-03-01',
-  },
-], richtlinien: []};
+const SEED = { anforderungen: [], richtlinien: [], users: [], config: DEFAULT_CONFIG};
 
 // ── Icons (inline SVG, 1.5 stroke) ─────────────────────────────────────────
 const Icon = ({ name, cls = 'w-4 h-4' }) => {
@@ -811,6 +810,10 @@ const Icon = ({ name, cls = 'w-4 h-4' }) => {
     'file-text': <><path strokeLinecap="round" strokeLinejoin="round" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z"/><path strokeLinecap="round" strokeLinejoin="round" d="M14 2v6h6M16 13H8m8 4H8m2-8H8"/></>,
     lock:     <path strokeLinecap="round" strokeLinejoin="round" d="M17 11H7a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2ZM12 7a3 3 0 0 0-3 3v1h6v-1a3 3 0 0 0-3-3Z"/>,
     users:    <><path strokeLinecap="round" strokeLinejoin="round" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path strokeLinecap="round" strokeLinejoin="round" d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></>,
+    user:     <><path strokeLinecap="round" strokeLinejoin="round" d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></>,
+    home:     <path strokeLinecap="round" strokeLinejoin="round" d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/>,
+    'log-out':<path strokeLinecap="round" strokeLinejoin="round" d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4m7 14 5-5-5-5m5 5H9"/>,
+    'chevron-left': <path strokeLinecap="round" strokeLinejoin="round" d="m15 18-6-6 6-6"/>,
   };
   return (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.6} stroke="currentColor" className={cls}>
@@ -858,19 +861,126 @@ const Modal = ({ title, subtitle, onClose, size = 'md', children, footer }) => {
   );
 };
 
+// ── Config List Editor (simple list add/remove) ────────────────────────────
+const ListEditor = ({ items, onAdd, onRemove, placeholder }) => {
+  const [input, setInput] = useState('');
+  const add = () => { const v = input.trim(); if (!v || items.includes(v)) return; onAdd(v); setInput(''); };
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1.5">
+        {items.map(item => (
+          <span key={item} className="inline-flex items-center gap-1 px-2 py-1 bg-ink-50 border border-line rounded-md text-[12px] text-ink-700">
+            {item}
+            <button onClick={() => onRemove(item)} className="text-ink-300 hover:text-[#a13d36] ml-0.5"><Icon name="x" cls="w-3 h-3"/></button>
+          </span>
+        ))}
+        {items.length === 0 && <span className="text-[12px] text-ink-300 italic">Noch keine Einträge</span>}
+      </div>
+      <div className="flex gap-2">
+        <input className="field flex-1 text-[13px]" placeholder={placeholder || 'Neuer Eintrag…'} value={input}
+          onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && add()}/>
+        <button onClick={add} className="btn btn-outline btn-sm flex-shrink-0"><Icon name="plus" cls="w-3.5 h-3.5"/></button>
+      </div>
+    </div>
+  );
+};
+
+// ── Config Kategorien Editor (category + subcategories) ────────────────────
+const KategorienEditor = ({ kategorien, onChange }) => {
+  const [catInput, setCatInput] = useState('');
+  const [expanded, setExpanded] = useState({});
+  const cats = Object.keys(kategorien);
+
+  const addCat = () => {
+    const v = catInput.trim();
+    if (!v || kategorien[v]) return;
+    onChange({ ...kategorien, [v]: [] });
+    setCatInput('');
+  };
+  const removeCat = (cat) => {
+    const next = { ...kategorien };
+    delete next[cat];
+    onChange(next);
+  };
+  const addSub = (cat, val) => {
+    if (!val.trim() || (kategorien[cat] || []).includes(val.trim())) return;
+    onChange({ ...kategorien, [cat]: [...(kategorien[cat] || []), val.trim()] });
+  };
+  const removeSub = (cat, val) => {
+    onChange({ ...kategorien, [cat]: (kategorien[cat] || []).filter(s => s !== val) });
+  };
+
+  return (
+    <div className="space-y-2">
+      {cats.map(cat => (
+        <div key={cat} className="border border-line rounded-lg overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-2 bg-[#f7fafb] cursor-pointer" onClick={() => setExpanded(e => ({ ...e, [cat]: !e[cat] }))}>
+            <Icon name="chev" cls={`w-3.5 h-3.5 text-ink-400 transition-transform ${expanded[cat] ? 'rotate-180' : ''}`}/>
+            <span className="text-[13px] font-medium text-ink-900 flex-1 truncate">{cat}</span>
+            <span className="text-[11px] text-ink-400 font-mono mr-2">{(kategorien[cat] || []).length} Unterkategorien</span>
+            <button onClick={e => { e.stopPropagation(); removeCat(cat); }} className="p-1 text-ink-300 hover:text-[#a13d36]"><Icon name="trash" cls="w-3.5 h-3.5"/></button>
+          </div>
+          {expanded[cat] && (
+            <div className="px-3 py-2.5 border-t border-line space-y-2">
+              <div className="flex flex-wrap gap-1.5">
+                {(kategorien[cat] || []).map(sub => (
+                  <span key={sub} className="inline-flex items-center gap-1 px-2 py-1 bg-ink-50 border border-line rounded text-[11.5px] text-ink-700">
+                    {sub}
+                    <button onClick={() => removeSub(cat, sub)} className="text-ink-300 hover:text-[#a13d36]"><Icon name="x" cls="w-2.5 h-2.5"/></button>
+                  </span>
+                ))}
+                {(kategorien[cat] || []).length === 0 && <span className="text-[11.5px] text-ink-300 italic">Keine Unterkategorien</span>}
+              </div>
+              <SubInput onAdd={val => addSub(cat, val)}/>
+            </div>
+          )}
+        </div>
+      ))}
+      <div className="flex gap-2 pt-1">
+        <input className="field flex-1 text-[13px]" placeholder="Neue Kategorie…" value={catInput}
+          onChange={e => setCatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && addCat()}/>
+        <button onClick={addCat} className="btn btn-outline btn-sm flex-shrink-0"><Icon name="plus" cls="w-3.5 h-3.5"/> Kategorie</button>
+      </div>
+    </div>
+  );
+};
+
+const SubInput = ({ onAdd }) => {
+  const [v, setV] = useState('');
+  const add = () => { if (!v.trim()) return; onAdd(v.trim()); setV(''); };
+  return (
+    <div className="flex gap-2">
+      <input className="field flex-1 text-[12px]" placeholder="Neue Unterkategorie…" value={v}
+        onChange={e => setV(e.target.value)} onKeyDown={e => e.key === 'Enter' && add()}/>
+      <button onClick={add} className="btn btn-outline btn-sm flex-shrink-0"><Icon name="plus" cls="w-3 h-3"/></button>
+    </div>
+  );
+};
+
 // ── Einstellungen Modal ────────────────────────────────────────────────────
-const EinstellungenModal = ({ data, onImport, onClose, syncStatus, onConnectGist, onDisconnectGist }) => {
+const EinstellungenModal = ({ data, onImport, onClose, syncStatus, onConnectGist, onDisconnectGist, onConfigChange }) => {
   const fileRef = useRef();
+  const [tab, setTab] = useState('sync');
   const [tokenInput, setTokenInput] = useState('');
   const [connecting, setConnecting] = useState(false);
   const hasToken = !!localStorage.getItem(GIST_TOKEN_KEY);
   const gistId   = localStorage.getItem(GIST_ID_KEY);
+  const cfg = getConfig(data);
+
+  const updateConfig = (path, value) => {
+    const parts = path.split('.');
+    const newConfig = JSON.parse(JSON.stringify(data.config || DEFAULT_CONFIG));
+    let node = newConfig;
+    for (let i = 0; i < parts.length - 1; i++) { if (!node[parts[i]]) node[parts[i]] = {}; node = node[parts[i]]; }
+    node[parts[parts.length - 1]] = value;
+    onConfigChange(newConfig);
+  };
 
   const doExport = () => {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `anforderungen-backup-${today()}.json`; a.click();
+    a.href = url; a.download = `compliance-backup-${today()}.json`; a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -882,9 +992,7 @@ const EinstellungenModal = ({ data, onImport, onClose, syncStatus, onConnectGist
       try {
         const parsed = JSON.parse(ev.target.result);
         if (!parsed.anforderungen) return alert('Ungültiges Dateiformat.');
-        if (confirm(`${parsed.anforderungen.length} Anforderungen importieren? Bestehende Daten werden überschrieben.`)) {
-          onImport(parsed);
-        }
+        if (confirm(`${parsed.anforderungen.length} Anforderungen importieren? Bestehende Daten werden überschrieben.`)) onImport(parsed);
       } catch { alert('Fehler beim Lesen der Datei.'); }
     };
     reader.readAsText(file);
@@ -893,121 +1001,169 @@ const EinstellungenModal = ({ data, onImport, onClose, syncStatus, onConnectGist
   const doConnect = async () => {
     if (!tokenInput.trim()) return alert('Bitte einen Token eingeben.');
     setConnecting(true);
-    try {
-      await onConnectGist(tokenInput.trim());
-      setTokenInput('');
-    } catch (e) {
-      alert('Verbindung fehlgeschlagen: ' + e.message);
-    }
+    try { await onConnectGist(tokenInput.trim()); setTokenInput(''); }
+    catch (e) { alert('Verbindung fehlgeschlagen: ' + e.message); }
     setConnecting(false);
   };
 
+  const doClearLocal = () => {
+    if (!confirm('Lokale Daten wirklich löschen?\n\nDas entfernt alle lokal gespeicherten Daten. Falls Gist-Sync aktiv ist, bleiben die Daten in der Cloud erhalten und werden beim nächsten Laden wiederhergestellt.')) return;
+    localStorage.removeItem(STORAGE_KEY);
+    window.location.reload();
+  };
+
   const syncStatusLabel = {
-    idle:    { text: 'Nicht verbunden',   cls: 'text-ink-400' },
-    syncing: { text: 'Synchronisiere…',   cls: 'text-petrol-600' },
-    synced:  { text: 'Synchronisiert',    cls: 'text-[#2e5a4d]' },
-    error:   { text: 'Fehler beim Sync',  cls: 'text-[#a13d36]' },
+    idle:    { text: 'Nicht verbunden', cls: 'text-ink-400' },
+    syncing: { text: 'Synchronisiere…', cls: 'text-petrol-600' },
+    synced:  { text: 'Synchronisiert',  cls: 'text-[#2e5a4d]' },
+    error:   { text: 'Fehler',          cls: 'text-[#a13d36]' },
   }[syncStatus] || { text: '—', cls: 'text-ink-400' };
 
-  return (
-    <Modal title="Einstellungen" subtitle="Datensicherung und Cloud-Sync" onClose={onClose} size="md">
-      <div className="space-y-6">
+  const TABS = [
+    { id: 'sync',   label: 'Sync & Backup' },
+    { id: 'anf',    label: 'Anforderungen' },
+    { id: 'rl',     label: 'Richtlinien'   },
+  ];
 
-        {/* GitHub Sync */}
-        <div>
-          <span className="lbl">GitHub Cloud-Sync</span>
-          <div className="card divide-y divide-line">
-            {hasToken ? (
-              <div className="p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-[#4a8a7a]"></span>
-                    <span className="text-[13px] font-medium text-ink-900">Verbunden</span>
+  return (
+    <Modal title="Einstellungen" onClose={onClose} size="xl">
+      {/* Tab bar */}
+      <div className="flex gap-1 border-b border-line -mx-6 px-6 mb-5">
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`px-4 py-2 text-[13px] font-medium border-b-2 transition-colors -mb-px ${tab === t.id ? 'border-petrol-500 text-petrol-600' : 'border-transparent text-ink-400 hover:text-ink-900'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'sync' && (
+        <div className="space-y-6">
+          <div>
+            <span className="lbl">GitHub Cloud-Sync</span>
+            <div className="card divide-y divide-line">
+              {hasToken ? (
+                <div className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-[#4a8a7a]"/>
+                      <span className="text-[13px] font-medium text-ink-900">Verbunden</span>
+                    </div>
+                    <span className={`text-[12px] font-medium ${syncStatusLabel.cls}`}>{syncStatusLabel.text}</span>
                   </div>
-                  <span className={`text-[12px] font-medium ${syncStatusLabel.cls}`}>{syncStatusLabel.text}</span>
+                  {gistId && <p className="text-[11px] text-ink-400 font-mono">Gist: {gistId.slice(0,16)}…</p>}
+                  <button onClick={onDisconnectGist} className="btn btn-outline btn-sm text-[#a13d36] border-[#f0b4b4] hover:bg-[#fbeded]">Verbindung trennen</button>
                 </div>
-                {gistId && (
-                  <p className="text-[11px] text-ink-400 font-mono">Gist: {gistId.slice(0,16)}…</p>
-                )}
-                <button onClick={onDisconnectGist} className="btn btn-outline btn-sm text-[#a13d36] border-[#f0b4b4] hover:bg-[#fbeded]">
-                  Verbindung trennen
+              ) : (
+                <div className="p-4 space-y-3">
+                  <p className="text-[13px] text-ink-700">Personal Access Token mit Scope <span className="font-mono text-[11px] bg-ink-50 px-1 py-0.5 rounded border border-line">gist</span> eingeben.</p>
+                  <div className="flex gap-2">
+                    <input type="password" className="field flex-1" placeholder="ghp_… oder github_pat_…"
+                      value={tokenInput} onChange={e => setTokenInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && doConnect()}/>
+                    <button onClick={doConnect} disabled={connecting} className="btn btn-accent btn-sm flex-shrink-0">
+                      {connecting ? 'Verbinde…' : 'Verbinden'}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-ink-400">github.com → Settings → Developer settings → Personal access tokens</p>
+                </div>
+              )}
+            </div>
+          </div>
+          <div>
+            <span className="lbl">Datensicherung</span>
+            <div className="card divide-y divide-line">
+              <div className="flex items-center gap-4 p-4">
+                <div className="flex-1">
+                  <p className="text-[13px] font-medium text-ink-900">Exportieren</p>
+                  <p className="text-xs text-ink-400 mt-0.5">Alle Daten als JSON-Backup speichern.</p>
+                </div>
+                <button onClick={doExport} className="btn btn-outline btn-sm"><Icon name="download" cls="w-3.5 h-3.5"/> Export</button>
+              </div>
+              <div className="flex items-center gap-4 p-4">
+                <div className="flex-1">
+                  <p className="text-[13px] font-medium text-ink-900">Importieren</p>
+                  <p className="text-xs text-ink-400 mt-0.5">Backup wiederherstellen — überschreibt alle Daten.</p>
+                </div>
+                <button onClick={() => fileRef.current.click()} className="btn btn-outline btn-sm"><Icon name="upload" cls="w-3.5 h-3.5"/> Import</button>
+                <input ref={fileRef} type="file" accept=".json" className="hidden" onChange={doImport}/>
+              </div>
+            </div>
+          </div>
+          <div>
+            <span className="lbl">Speicher</span>
+            <div className="card divide-y divide-line">
+              <div className="p-4 space-y-2">
+                {[['Anforderungen', (data.anforderungen||[]).length], ['Richtlinien', (data.richtlinien||[]).length]].map(([k,v]) => (
+                  <div key={k} className="flex items-center justify-between text-[13px]">
+                    <span className="text-ink-500">{k}</span>
+                    <span className="font-mono font-medium text-ink-900">{v}</span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between text-[13px]">
+                  <span className="text-ink-500">Speicherort</span>
+                  <span className={`font-mono text-xs ${hasToken ? 'text-[#2e5a4d]' : 'text-ink-700'}`}>
+                    {hasToken ? 'GitHub Gist + localStorage' : 'localStorage (nur lokal)'}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 p-4">
+                <div className="flex-1">
+                  <p className="text-[13px] font-medium text-ink-900">Lokalen Speicher löschen</p>
+                  <p className="text-xs text-ink-400 mt-0.5">Entfernt lokale Daten. Bei aktivem Gist-Sync werden Daten beim nächsten Start wiederhergestellt.</p>
+                </div>
+                <button onClick={doClearLocal} className="btn btn-outline btn-sm flex-shrink-0" style={{ color: '#a13d36', borderColor: '#f0c4c1' }}>
+                  <Icon name="trash" cls="w-3.5 h-3.5"/> Löschen
                 </button>
               </div>
-            ) : (
-              <div className="p-4 space-y-3">
-                <p className="text-[13px] text-ink-700">
-                  Gib einen GitHub Personal Access Token ein, um deine Daten geräteübergreifend zu synchronisieren.
-                  Der Token benötigt den Scope <span className="font-mono text-[11px] bg-ink-50 px-1 py-0.5 rounded border border-line">gist</span>.
-                </p>
-                <div className="flex gap-2">
-                  <input
-                    type="password"
-                    className="field flex-1"
-                    placeholder="ghp_… oder github_pat_…"
-                    value={tokenInput}
-                    onChange={e => setTokenInput(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && doConnect()}
-                  />
-                  <button onClick={doConnect} disabled={connecting} className="btn btn-accent btn-sm flex-shrink-0">
-                    {connecting ? 'Verbinde…' : 'Verbinden'}
-                  </button>
-                </div>
-                <p className="text-[11px] text-ink-400">
-                  Token erstellen unter <span className="font-mono">github.com → Settings → Developer settings → Personal access tokens</span>
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Datensicherung */}
-        <div>
-          <span className="lbl">Datensicherung</span>
-          <div className="card divide-y divide-line">
-            <div className="flex items-center gap-4 p-4">
-              <div className="flex-1">
-                <p className="text-[13px] font-medium text-ink-900">Daten exportieren</p>
-                <p className="text-xs text-ink-400 mt-0.5">Alle Anforderungen und Richtlinien als JSON-Datei speichern.</p>
-              </div>
-              <button onClick={doExport} className="btn btn-outline btn-sm">
-                <Icon name="download" cls="w-3.5 h-3.5"/> Export
-              </button>
-            </div>
-            <div className="flex items-center gap-4 p-4">
-              <div className="flex-1">
-                <p className="text-[13px] font-medium text-ink-900">Daten importieren</p>
-                <p className="text-xs text-ink-400 mt-0.5">Backup wiederherstellen — überschreibt alle aktuellen Daten.</p>
-              </div>
-              <button onClick={() => fileRef.current.click()} className="btn btn-outline btn-sm">
-                <Icon name="upload" cls="w-3.5 h-3.5"/> Import
-              </button>
-              <input ref={fileRef} type="file" accept=".json" className="hidden" onChange={doImport}/>
             </div>
           </div>
         </div>
+      )}
 
-        {/* Speicherinfo */}
-        <div>
-          <span className="lbl">Speicher</span>
-          <div className="card p-4">
-            <div className="flex items-center justify-between text-[13px]">
-              <span className="text-ink-500">Anforderungen</span>
-              <span className="font-mono font-medium text-ink-900">{(data.anforderungen || []).length}</span>
-            </div>
-            <div className="flex items-center justify-between text-[13px] mt-2">
-              <span className="text-ink-500">Richtlinien</span>
-              <span className="font-mono font-medium text-ink-900">{(data.richtlinien || []).length}</span>
-            </div>
-            <div className="flex items-center justify-between text-[13px] mt-2">
-              <span className="text-ink-500">Speicherort</span>
-              <span className={`font-mono text-xs ${hasToken ? 'text-[#2e5a4d]' : 'text-ink-700'}`}>
-                {hasToken ? 'GitHub Gist + localStorage' : 'localStorage (nur lokal)'}
-              </span>
-            </div>
+      {tab === 'anf' && (
+        <div className="space-y-5">
+          <div>
+            <span className="lbl">Kategorien & Unterkategorien</span>
+            <p className="text-[12px] text-ink-400 mb-3">Kategorien und zugehörige Unterkategorien für Anforderungen verwalten.</p>
+            <KategorienEditor
+              kategorien={cfg.anfKategorien}
+              onChange={val => updateConfig('anforderungen.kategorien', val)}
+            />
           </div>
         </div>
+      )}
 
-      </div>
+      {tab === 'rl' && (
+        <div className="space-y-6">
+          <div>
+            <span className="lbl">Kategorien & Unterkategorien</span>
+            <p className="text-[12px] text-ink-400 mb-3">Kategorien und zugehörige Unterkategorien für Richtlinien verwalten.</p>
+            <KategorienEditor
+              kategorien={cfg.rlKategorien}
+              onChange={val => updateConfig('richtlinien.kategorien', val)}
+            />
+          </div>
+          <div>
+            <span className="lbl">Art</span>
+            <ListEditor items={cfg.rlArt} placeholder="z.B. Strategie, Richtlinie…"
+              onAdd={v => updateConfig('richtlinien.art', [...cfg.rlArt, v])}
+              onRemove={v => updateConfig('richtlinien.art', cfg.rlArt.filter(x => x !== v))}/>
+          </div>
+          <div>
+            <span className="lbl">Anwender</span>
+            <ListEditor items={cfg.rlAnwender} placeholder="z.B. Mitarbeitende…"
+              onAdd={v => updateConfig('richtlinien.anwender', [...cfg.rlAnwender, v])}
+              onRemove={v => updateConfig('richtlinien.anwender', cfg.rlAnwender.filter(x => x !== v))}/>
+          </div>
+          <div>
+            <span className="lbl">Verantwortung</span>
+            <ListEditor items={cfg.rlRollen} placeholder="z.B. CISO, IT-Leiter…"
+              onAdd={v => updateConfig('richtlinien.rollen', [...cfg.rlRollen, v])}
+              onRemove={v => updateConfig('richtlinien.rollen', cfg.rlRollen.filter(x => x !== v))}/>
+          </div>
+        </div>
+      )}
+
     </Modal>
   );
 };
@@ -1024,46 +1180,32 @@ const SchutzbedarfBadge = ({ wert }) => {
 };
 
 // ── Form: Anforderung anlegen / bearbeiten ─────────────────────────────────
-const AnforderungForm = ({ initial, onSave, onClose, anforderungen }) => {
+const AnforderungForm = ({ initial, onSave, onClose, anforderungen, config }) => {
   const isEdit = !!initial?.id;
-  const defaultKat = Object.keys(KATEGORIEN)[0];
+  const kategorien = config?.anfKategorien || DEFAULT_KATEGORIEN;
+  const defaultKat = Object.keys(kategorien)[0];
   const [form, setForm] = useState(() => initial || {
-    anforderung_id: '', kategorie: defaultKat, unterkategorie: '',
-    beschreibung: '', schutzobjektarten: [], schutzbedarf: 'mittel',
-    dienstleistungsmodelle: [], kritische_funktionen: false,
+    anforderung_id: '', kategorie: defaultKat, unterkategorie: '', beschreibung: '',
   });
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const setKategorie = (kat) => setForm(f => ({ ...f, kategorie: kat, unterkategorie: '' }));
-  const toggleObjektart = (art) => setForm(f => ({
-    ...f,
-    schutzobjektarten: f.schutzobjektarten.includes(art)
-      ? f.schutzobjektarten.filter(a => a !== art)
-      : [...f.schutzobjektarten, art],
-  }));
-  const toggleDienstleistung = (dl) => setForm(f => ({
-    ...f,
-    dienstleistungsmodelle: (f.dienstleistungsmodelle || []).includes(dl)
-      ? f.dienstleistungsmodelle.filter(d => d !== dl)
-      : [...(f.dienstleistungsmodelle || []), dl],
-  }));
 
   const handleSave = () => {
     if (!form.anforderung_id.trim()) return alert('Bitte eine ID eingeben.');
     const idTrimmed = form.anforderung_id.trim();
     const duplicate = (anforderungen || []).some(a => a.id !== form.id && a.anforderung_id === idTrimmed);
-    if (duplicate) return alert(`Die ID "${idTrimmed}" ist bereits vergeben. Bitte wähle eine andere ID.`);
+    if (duplicate) return alert(`Die ID "${idTrimmed}" ist bereits vergeben.`);
     if (!form.beschreibung.trim()) return alert('Bitte eine Beschreibung eingeben.');
-    if (form.schutzobjektarten.length === 0) return alert('Bitte mindestens eine Schutzobjektart auswählen.');
     onSave(form);
   };
 
   return (
     <Modal
       title={isEdit ? 'Anforderung bearbeiten' : 'Neue Anforderung'}
-      subtitle={isEdit ? form.anforderung_id : 'Lege eine neue Sicherheits- oder Compliance-Anforderung an.'}
+      subtitle={isEdit ? form.anforderung_id : 'Neue Anforderung erfassen'}
       onClose={onClose}
-      size="xl"
+      size="lg"
       footer={
         <>
           <button onClick={onClose} className="btn btn-ghost">Abbrechen</button>
@@ -1073,86 +1215,25 @@ const AnforderungForm = ({ initial, onSave, onClose, anforderungen }) => {
         </>
       }
     >
-      <div className="space-y-6">
+      <div className="space-y-5">
         <div className="grid grid-cols-3 gap-4">
           <Field label="ID" required>
-            <input className="field font-mono" value={form.anforderung_id} onChange={e => set('anforderung_id', e.target.value)}/>
+            <input className="field font-mono" value={form.anforderung_id} onChange={e => set('anforderung_id', e.target.value)} placeholder="A.5.1.1"/>
           </Field>
           <Field label="Kategorie">
             <select className="field" value={form.kategorie} onChange={e => setKategorie(e.target.value)}>
-              {Object.keys(KATEGORIEN).map(k => <option key={k}>{k}</option>)}
+              {Object.keys(kategorien).map(k => <option key={k}>{k}</option>)}
             </select>
           </Field>
           <Field label="Unterkategorie">
             <select className="field" value={form.unterkategorie} onChange={e => set('unterkategorie', e.target.value)}>
               <option value="">— Bitte wählen —</option>
-              {(KATEGORIEN[form.kategorie] || []).map(u => <option key={u}>{u}</option>)}
+              {(kategorien[form.kategorie] || []).map(u => <option key={u}>{u}</option>)}
             </select>
           </Field>
         </div>
-
         <Field label="Beschreibung" required>
           <textarea className="field" rows={6} value={form.beschreibung} onChange={e => set('beschreibung', e.target.value)} placeholder="Anforderung präzise beschreiben…"/>
-        </Field>
-
-        <Field label="Schutzbedarf">
-          <div className="seg">
-            {Object.entries(SCHUTZBEDARF_CONFIG).map(([val, cfg]) => (
-              <button
-                key={val} type="button"
-                onClick={() => set('schutzbedarf', val)}
-                className={`seg-btn ${form.schutzbedarf === val ? 'is-active' : ''}`}
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${
-                  val === 'niedrig' ? 'bg-[#4a8a7a]' : val === 'mittel' ? 'bg-[#c08020]' : 'bg-[#b53a31]'
-                }`}></span>
-                {cfg.label}
-              </button>
-            ))}
-          </div>
-        </Field>
-
-        <Field label="Betroffene Schutzobjektarten" required hint="Mehrfachauswahl">
-          <div className="grid grid-cols-2 gap-2">
-            {SCHUTZOBJEKTARTEN.map(art => {
-              const checked = form.schutzobjektarten.includes(art);
-              return (
-                <div key={art} onClick={() => toggleObjektart(art)} className={`opt ${checked ? 'is-checked' : ''}`}>
-                  <span className="opt-check">
-                    {checked && <svg viewBox="0 0 12 12" fill="none" className="w-2.5 h-2.5"><path d="M2 6l3 3 5-5" stroke="#1a1a1d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                  </span>
-                  <span className="flex-1 truncate">{art}</span>
-                </div>
-              );
-            })}
-          </div>
-        </Field>
-
-        <Field label="Relevante Dienstleistungsmodelle" hint="Mehrfachauswahl">
-          <div className="flex flex-wrap gap-2">
-            {DIENSTLEISTUNGSMODELLE.map(dl => {
-              const checked = (form.dienstleistungsmodelle || []).includes(dl);
-              return (
-                <div key={dl} onClick={() => toggleDienstleistung(dl)} className={`opt ${checked ? 'is-checked' : ''}`} style={{ minWidth: 0 }}>
-                  <span className="opt-check">
-                    {checked && <svg viewBox="0 0 12 12" fill="none" className="w-2.5 h-2.5"><path d="M2 6l3 3 5-5" stroke="#1a1a1d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                  </span>
-                  <span className="font-mono text-[12px]">{dl}</span>
-                </div>
-              );
-            })}
-          </div>
-        </Field>
-
-        <Field label="Kritische / wichtige Funktionen">
-          <div onClick={() => set('kritische_funktionen', !form.kritische_funktionen)}
-            className={`opt ${form.kritische_funktionen ? 'is-checked' : ''}`}
-            style={{ width: 'fit-content' }}>
-            <span className="opt-check">
-              {form.kritische_funktionen && <svg viewBox="0 0 12 12" fill="none" className="w-2.5 h-2.5"><path d="M2 6l3 3 5-5" stroke="#1a1a1d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-            </span>
-            <span>Unterstützt kritische und wichtige Funktionen</span>
-          </div>
         </Field>
       </div>
     </Modal>
@@ -1160,8 +1241,7 @@ const AnforderungForm = ({ initial, onSave, onClose, anforderungen }) => {
 };
 
 // ── Detail panel ───────────────────────────────────────────────────────────
-const AnforderungDetailPanel = ({ anforderung, onEdit, onClose, richtlinien = [] }) => {
-  const cfg = SCHUTZBEDARF_CONFIG[anforderung.schutzbedarf] || {};
+const AnforderungDetailPanel = ({ anforderung, onEdit, onClose, richtlinien = [], canEdit }) => {
   const linkedRichtlinien = richtlinien.filter(r => (r.anforderungen_ids || []).includes(anforderung.id));
   return (
     <Modal
@@ -1172,23 +1252,13 @@ const AnforderungDetailPanel = ({ anforderung, onEdit, onClose, richtlinien = []
       footer={
         <>
           <button onClick={onClose} className="btn btn-ghost">Schließen</button>
-          <button onClick={onEdit} className="btn btn-primary">
+          {canEdit && <button onClick={onEdit} className="btn btn-primary">
             <Icon name="edit" cls="w-3.5 h-3.5"/> Bearbeiten
-          </button>
+          </button>}
         </>
       }
     >
       <div className="space-y-6">
-        <div className="flex items-center gap-3">
-          <SchutzbedarfBadge wert={anforderung.schutzbedarf}/>
-          {anforderung.kritische_funktionen && (
-            <span className="pill-crit">
-              <span className="w-1 h-1 rounded-full bg-petrol-600"></span>
-              Kritische Funktion
-            </span>
-          )}
-        </div>
-
         <div>
           <span className="lbl">Beschreibung</span>
           <p className="text-[14px] text-ink-900 leading-relaxed">{anforderung.beschreibung}</p>
@@ -1196,26 +1266,15 @@ const AnforderungDetailPanel = ({ anforderung, onEdit, onClose, richtlinien = []
 
         <div className="grid grid-cols-2 gap-6">
           <div>
-            <span className="lbl">Schutzobjektarten</span>
-            {anforderung.schutzobjektarten.length === 0
-              ? <span className="text-sm text-ink-300">—</span>
-              : <div className="flex flex-wrap gap-1.5">
-                  {anforderung.schutzobjektarten.map(s => <span key={s} className="tag-soft">{s}</span>)}
-                </div>
-            }
+            <span className="lbl">Kategorie</span>
+            <p className="text-[13.5px] text-ink-900">{anforderung.kategorie}</p>
           </div>
           <div>
-            <span className="lbl">Dienstleistungsmodelle</span>
-            {(anforderung.dienstleistungsmodelle || []).length === 0
-              ? <span className="text-sm text-ink-300">—</span>
-              : <div className="flex flex-wrap gap-1.5">
-                  {anforderung.dienstleistungsmodelle.map(dl => <span key={dl} className="tag">{dl}</span>)}
-                </div>
-            }
+            <span className="lbl">Unterkategorie</span>
+            <p className="text-[13.5px] text-ink-900">{anforderung.unterkategorie || '—'}</p>
           </div>
         </div>
 
-        {/* Verknüpfte Richtlinien */}
         <div>
           <span className="lbl">Verknüpfte Richtlinien</span>
           {linkedRichtlinien.length === 0 ? (
@@ -1250,27 +1309,19 @@ const AnforderungDetailPanel = ({ anforderung, onEdit, onClose, richtlinien = []
 };
 
 // ── List view ──────────────────────────────────────────────────────────────
-const AnforderungenView = ({ anforderungen, onCreate, onView, onEdit, onDelete }) => {
+const AnforderungenView = ({ anforderungen, onCreate, onView, onEdit, onDelete, config, canEdit, canDelete }) => {
+  const kategorien = config?.anfKategorien || DEFAULT_KATEGORIEN;
   const [search, setSearch] = useState('');
   const [kategorieFilter, setKategorieFilter] = useState('alle');
-  const [bedarfFilter, setBedarfFilter] = useState('alle');
-
-  const stats = useMemo(() => ({
-    hoch:    anforderungen.filter(a => a.schutzbedarf === 'hoch').length,
-    mittel:  anforderungen.filter(a => a.schutzbedarf === 'mittel').length,
-    niedrig: anforderungen.filter(a => a.schutzbedarf === 'niedrig').length,
-    krit:    anforderungen.filter(a => a.kritische_funktionen).length,
-  }), [anforderungen]);
 
   const filtered = anforderungen.filter(a => {
     const q = search.toLowerCase();
     const matchSearch = !q || a.anforderung_id.toLowerCase().includes(q) || a.beschreibung.toLowerCase().includes(q) || (a.kategorie || '').toLowerCase().includes(q) || (a.unterkategorie || '').toLowerCase().includes(q);
     const matchKat = kategorieFilter === 'alle' || a.kategorie === kategorieFilter;
-    const matchBedarf = bedarfFilter === 'alle' || a.schutzbedarf === bedarfFilter;
-    return matchSearch && matchKat && matchBedarf;
+    return matchSearch && matchKat;
   }).sort((a, b) => a.anforderung_id.localeCompare(b.anforderung_id));
 
-  const hasFilter = search || kategorieFilter !== 'alle' || bedarfFilter !== 'alle';
+  const hasFilter = search || kategorieFilter !== 'alle';
 
   return (
     <div className="space-y-6">
@@ -1281,26 +1332,22 @@ const AnforderungenView = ({ anforderungen, onCreate, onView, onEdit, onDelete }
             Anforderungen
           </h1>
           <p className="text-[13px] text-ink-400 mt-2">
-            Sicherheits- und Compliance-Anforderungen auf Basis von DORA, BAIT, MaRisk und vertraglichen Anforderungen.
+            Compliance-Anforderungen erfassen und verwalten.
           </p>
         </div>
-        <button onClick={onCreate} className="btn btn-primary">
+        {canEdit && <button onClick={onCreate} className="btn btn-primary">
           <Icon name="plus" cls="w-3.5 h-3.5"/> Neue Anforderung
-        </button>
+        </button>}
       </div>
 
       {/* Stats strip */}
-      <div className="grid grid-cols-5 gap-3">
-        <StatCard label="Alle" value={anforderungen.length} accent="black" icon="layers"/>
-        <StatCard label="Niedriger Schutzbedarf" value={stats.niedrig} accent="green" icon="shield"/>
-        <StatCard label="Mittlerer Schutzbedarf" value={stats.mittel} accent="yellow" icon="shield-half"/>
-        <StatCard label="Hoher Schutzbedarf" value={stats.hoch} accent="red" icon="shield-alert"/>
-        <StatCard label="Kritische Funktionen" value={stats.krit} accent="black" icon="zap"/>
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard label="Anforderungen gesamt" value={anforderungen.length} accent="black" icon="layers"/>
+        <StatCard label="Kategorien" value={new Set(anforderungen.map(a => a.kategorie)).size} accent="petrol" icon="list"/>
       </div>
 
       {/* Toolbar */}
       <div className="toolbar">
-        {/* Suche */}
         <label className={`toolbar-seg seg-search ${search ? 'is-active' : ''}`}>
           <Icon name="search" cls="seg-ico"/>
           <input
@@ -1308,42 +1355,19 @@ const AnforderungenView = ({ anforderungen, onCreate, onView, onEdit, onDelete }
             value={search} onChange={e => setSearch(e.target.value)}
           />
         </label>
-        {/* Kategorie */}
         <label className={`toolbar-seg has-select ${kategorieFilter !== 'alle' ? 'is-active' : ''}`} style={{ flex: '1 1 0', minWidth: 0 }}>
           <Icon name="layers" cls="seg-ico"/>
           <span className="seg-label">Kategorie</span>
-          <select
-            value={kategorieFilter} onChange={e => setKategorieFilter(e.target.value)}
-            style={{ flex: 1, minWidth: 0 }}
-          >
+          <select value={kategorieFilter} onChange={e => setKategorieFilter(e.target.value)} style={{ flex: 1, minWidth: 0 }}>
             <option value="alle">Alle</option>
-            {Object.keys(KATEGORIEN).map(k => <option key={k}>{k}</option>)}
+            {Object.keys(kategorien).map(k => <option key={k}>{k}</option>)}
           </select>
         </label>
-        {/* Schutzbedarf */}
-        <label className={`toolbar-seg has-select ${bedarfFilter !== 'alle' ? 'is-active' : ''}`} style={{ flex: '1 1 0', minWidth: 0 }}>
-          <Icon name="shield" cls="seg-ico"/>
-          <span className="seg-label">Schutzbedarf</span>
-          <select
-            value={bedarfFilter} onChange={e => setBedarfFilter(e.target.value)}
-            style={{ flex: 1, minWidth: 0 }}
-          >
-            <option value="alle">Alle</option>
-            <option value="niedrig">Niedrig</option>
-            <option value="mittel">Mittel</option>
-            <option value="hoch">Hoch</option>
-          </select>
-        </label>
-        {/* Reset */}
         {hasFilter && (
-          <button
-            onClick={() => { setSearch(''); setKategorieFilter('alle'); setBedarfFilter('alle'); }}
-            className="toolbar-reset"
-          >
+          <button onClick={() => { setSearch(''); setKategorieFilter('alle'); }} className="toolbar-reset">
             <Icon name="x" cls="w-3.5 h-3.5"/> Zurücksetzen
           </button>
         )}
-        {/* Count */}
         <div className="toolbar-count">
           {hasFilter && <span className="count-dot"/>}
           <span><b>{filtered.length}</b> von {anforderungen.length}</span>
@@ -1353,56 +1377,37 @@ const AnforderungenView = ({ anforderungen, onCreate, onView, onEdit, onDelete }
       {/* Table */}
       <div className="card overflow-x-auto shadow-soft">
         {filtered.length === 0
-          ? <EmptyState hasFilter={hasFilter} onCreate={onCreate}/>
-          : <table className="data-table" style={{ minWidth: '960px' }}>
+          ? <EmptyState hasFilter={hasFilter} onCreate={onCreate} canEdit={canEdit}/>
+          : <table className="data-table" style={{ minWidth: '700px' }}>
               <thead>
                 <tr>
                   <th style={{ width: '110px' }}>ID</th>
                   <th>Beschreibung</th>
-                  <th style={{ width: '200px' }}>Kategorie</th>
-                  <th style={{ width: '110px' }}>Schutzbedarf</th>
-                  <th style={{ width: '170px' }}>Dienstleistung</th>
+                  <th style={{ width: '220px' }}>Kategorie</th>
                   <th style={{ width: '60px' }}></th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(a => (
                   <tr key={a.id} className="row-clickable" onClick={() => onView(a)}>
-                    <td>
-                      <span className="id-pill">{a.anforderung_id}</span>
-                    </td>
+                    <td><span className="id-pill">{a.anforderung_id}</span></td>
                     <td>
                       <p className="text-[13.5px] text-ink-900 line-clamp-2 leading-snug">{a.beschreibung}</p>
-                      {a.kritische_funktionen && (
-                        <span className="pill-crit mt-1.5">
-                          <span className="w-1 h-1 rounded-full bg-petrol-600"></span>
-                          Kritische Funktion
-                        </span>
-                      )}
                     </td>
                     <td>
                       <p className="text-[12.5px] text-ink-700 leading-snug">{a.kategorie}</p>
-                      {a.unterkategorie && <p className="text-[11px] text-ink-400 mt-0.5 leading-snug truncate" style={{ maxWidth: '180px' }}>{a.unterkategorie}</p>}
+                      {a.unterkategorie && <p className="text-[11px] text-ink-400 mt-0.5 leading-snug truncate" style={{ maxWidth: '200px' }}>{a.unterkategorie}</p>}
                     </td>
-                    <td><SchutzbedarfBadge wert={a.schutzbedarf}/></td>
-                    <td>
-                      <div className="flex flex-wrap gap-1">
-                        {(a.dienstleistungsmodelle || []).length === 0
-                          ? <span className="text-xs text-ink-300">—</span>
-                          : (a.dienstleistungsmodelle || []).map(dl => <span key={dl} className="tag">{dl}</span>)
-                        }
-                      </div>
-                    </td>
-                    <td onClick={e => e.stopPropagation()}>
+                    {(canEdit || canDelete) && <td onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-0.5 justify-end">
-                        <button onClick={() => onEdit(a)} className="p-1.5 rounded-md text-ink-400 hover:text-ink-900 hover:bg-ink-50 transition-colors" title="Bearbeiten">
+                        {canEdit && <button onClick={() => onEdit(a)} className="p-1.5 rounded-md text-ink-400 hover:text-ink-900 hover:bg-ink-50 transition-colors" title="Bearbeiten">
                           <Icon name="edit" cls="w-3.5 h-3.5"/>
-                        </button>
-                        <button onClick={() => onDelete(a.id)} className="p-1.5 rounded-md text-ink-400 hover:text-[#a13d36] hover:bg-rose-50 transition-colors" title="Löschen">
+                        </button>}
+                        {canDelete && <button onClick={() => onDelete(a.id)} className="p-1.5 rounded-md text-ink-400 hover:text-[#a13d36] hover:bg-rose-50 transition-colors" title="Löschen">
                           <Icon name="trash" cls="w-3.5 h-3.5"/>
-                        </button>
+                        </button>}
                       </div>
-                    </td>
+                    </td>}
                   </tr>
                 ))}
               </tbody>
@@ -1449,7 +1454,7 @@ const StatCard = ({ label, value, accent, icon }) => {
 };
 
 // ── Empty state ────────────────────────────────────────────────────────────
-const EmptyState = ({ hasFilter, onCreate }) => (
+const EmptyState = ({ hasFilter, onCreate, canEdit }) => (
   <div className="px-12 py-20 text-center">
     <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-ink-50 flex items-center justify-center text-ink-300">
       <Icon name={hasFilter ? 'search' : 'list'} cls="w-5 h-5"/>
@@ -1460,7 +1465,7 @@ const EmptyState = ({ hasFilter, onCreate }) => (
     <p className="text-[13px] text-ink-400 mb-5">
       {hasFilter ? 'Passe die Filter an oder setze sie zurück.' : 'Lege deine erste Sicherheits- oder Compliance-Anforderung an.'}
     </p>
-    {!hasFilter && (
+    {!hasFilter && canEdit && (
       <button onClick={onCreate} className="btn btn-primary">
         <Icon name="plus" cls="w-3.5 h-3.5"/> Neue Anforderung
       </button>
@@ -1481,28 +1486,32 @@ const VertraulichkeitBadge = ({ id }) => {
 };
 
 // ── RichtlinieForm ────────────────────────────────────────────────────────
-const RichtlinieForm = ({ initial, onSave, onClose, anforderungen }) => {
+const RichtlinieForm = ({ initial, onSave, onClose, anforderungen, config }) => {
   const isEdit = !!initial?.id;
   const pdfRef = useRef();
+  const rlKategorien = config?.rlKategorien || DEFAULT_CONFIG.richtlinien.kategorien;
+  const rlArt        = config?.rlArt        || DEFAULT_CONFIG.richtlinien.art;
+  const rlAnwender   = config?.rlAnwender   || DEFAULT_CONFIG.richtlinien.anwender;
+  const rlRollen     = config?.rlRollen     || [];
+  const defaultKat   = Object.keys(rlKategorien)[0] || '';
+
   const [form, setForm] = useState(() => initial || {
     richtlinie_id: '', titel: '',
-    kategorie: RICHTLINIEN_KATEGORIEN[0],
-    art: RICHTLINIEN_ART[1],
+    kategorie: defaultKat, unterkategorie: '',
+    art: rlArt[1] || rlArt[0] || '',
     vertraulichkeit: 'K2',
-    anwender: [],
-    verantwortung: '',
-    pdf: null,
-    anforderungen_ids: [],
+    anwender: [], rollen: [],
+    pdf: null, anforderungen_ids: [],
   });
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [anfSearch, setAnfSearch] = useState('');
+  const [anfKatFilter, setAnfKatFilter] = useState('alle');
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  const toggleAnwender = (opt) => setForm(f => ({
-    ...f,
-    anwender: f.anwender.includes(opt) ? f.anwender.filter(x => x !== opt) : [...f.anwender, opt],
+  const setKategorie = (kat) => setForm(f => ({ ...f, kategorie: kat, unterkategorie: '' }));
+  const toggleList = (key, val) => setForm(f => ({
+    ...f, [key]: (f[key] || []).includes(val) ? (f[key] || []).filter(x => x !== val) : [...(f[key] || []), val],
   }));
-
   const toggleAnforderung = (id) => setForm(f => ({
     ...f,
     anforderungen_ids: f.anforderungen_ids.includes(id)
@@ -1513,16 +1522,10 @@ const RichtlinieForm = ({ initial, onSave, onClose, anforderungen }) => {
   const handlePdf = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 4 * 1024 * 1024) {
-      alert('Die Datei ist zu groß (max. 4 MB). Bitte eine kleinere PDF-Datei wählen.');
-      return;
-    }
+    if (file.size > 4 * 1024 * 1024) { alert('Die Datei ist zu groß (max. 4 MB).'); return; }
     setPdfLoading(true);
     const reader = new FileReader();
-    reader.onload = ev => {
-      set('pdf', { name: file.name, size: file.size, data: ev.target.result });
-      setPdfLoading(false);
-    };
+    reader.onload = ev => { set('pdf', { name: file.name, size: file.size, data: ev.target.result }); setPdfLoading(false); };
     reader.readAsDataURL(file);
   };
 
@@ -1533,28 +1536,34 @@ const RichtlinieForm = ({ initial, onSave, onClose, anforderungen }) => {
   };
 
   return (
-    <Modal title={isEdit ? 'Richtlinie bearbeiten' : 'Neue Richtlinie'} onClose={onClose} size="lg">
+    <Modal title={isEdit ? 'Richtlinie bearbeiten' : 'Neue Richtlinie'} onClose={onClose} size="xl">
       <div className="space-y-5">
         {/* ID + Titel */}
         <div className="grid grid-cols-[160px_1fr] gap-4">
           <Field label="ID" required>
-            <input className="field font-mono" value={form.richtlinie_id} onChange={e => set('richtlinie_id', e.target.value)} placeholder="IS-R-1."/>
+            <input className="field font-mono" value={form.richtlinie_id} onChange={e => set('richtlinie_id', e.target.value)} placeholder="IS-R-1D"/>
           </Field>
           <Field label="Titel" required>
             <input className="field" value={form.titel} onChange={e => set('titel', e.target.value)} placeholder="Bezeichnung der Richtlinie"/>
           </Field>
         </div>
 
-        {/* Kategorie + Art */}
-        <div className="grid grid-cols-2 gap-4">
+        {/* Kategorie + Unterkategorie + Art */}
+        <div className="grid grid-cols-3 gap-4">
           <Field label="Kategorie">
-            <select className="field" value={form.kategorie} onChange={e => set('kategorie', e.target.value)}>
-              {RICHTLINIEN_KATEGORIEN.map(k => <option key={k}>{k}</option>)}
+            <select className="field" value={form.kategorie} onChange={e => setKategorie(e.target.value)}>
+              {Object.keys(rlKategorien).map(k => <option key={k}>{k}</option>)}
+            </select>
+          </Field>
+          <Field label="Unterkategorie">
+            <select className="field" value={form.unterkategorie || ''} onChange={e => set('unterkategorie', e.target.value)}>
+              <option value="">— Bitte wählen —</option>
+              {(rlKategorien[form.kategorie] || []).map(u => <option key={u}>{u}</option>)}
             </select>
           </Field>
           <Field label="Art">
             <select className="field" value={form.art} onChange={e => set('art', e.target.value)}>
-              {RICHTLINIEN_ART.map(a => <option key={a}>{a}</option>)}
+              {rlArt.map(a => <option key={a}>{a}</option>)}
             </select>
           </Field>
         </div>
@@ -1565,9 +1574,7 @@ const RichtlinieForm = ({ initial, onSave, onClose, anforderungen }) => {
             {VERTRAULICHKEIT.map(v => (
               <label key={v.id} onClick={() => set('vertraulichkeit', v.id)}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors select-none"
-                style={form.vertraulichkeit === v.id
-                  ? { background: v.bg, borderColor: v.border, color: v.fg }
-                  : { background: '#fff', borderColor: 'var(--line)', color: 'var(--ink-500)' }}>
+                style={form.vertraulichkeit === v.id ? { background: v.bg, borderColor: v.border, color: v.fg } : { background: '#fff', borderColor: 'var(--line)', color: 'var(--ink-500)' }}>
                 <span className="w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors"
                   style={form.vertraulichkeit === v.id ? { background: v.fg, borderColor: v.fg } : { borderColor: 'var(--line-strong)' }}>
                   {form.vertraulichkeit === v.id && <Icon name="check" cls="w-2 h-2 text-white"/>}
@@ -1578,28 +1585,37 @@ const RichtlinieForm = ({ initial, onSave, onClose, anforderungen }) => {
           </div>
         </Field>
 
-        {/* Anwender */}
-        <Field label="Anwender">
-          <div className="flex gap-3 mt-0.5">
-            {ANWENDER_OPTIONEN.map(opt => {
-              const checked = form.anwender.includes(opt);
-              return (
-                <label key={opt} onClick={() => toggleAnwender(opt)}
-                  className={`flex items-center gap-2.5 px-4 py-2 rounded-lg border cursor-pointer transition-colors select-none ${checked ? 'bg-brand-50 border-brand-200 text-brand-700' : 'bg-white border-line text-ink-500 hover:border-line-strong'}`}>
-                  <span className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${checked ? 'bg-brand-600 border-brand-600' : 'border-ink-200'}`}>
-                    {checked && <Icon name="check" cls="w-2.5 h-2.5 text-white"/>}
-                  </span>
-                  <span className="text-[13px] font-medium">{opt}</span>
-                </label>
-              );
-            })}
-          </div>
-        </Field>
-
-        {/* Verantwortung */}
-        <Field label="Verantwortung">
-          <input className="field" value={form.verantwortung} onChange={e => set('verantwortung', e.target.value)} placeholder="z.B. CISO, IT-Leitung, Datenschutzbeauftragter"/>
-        </Field>
+        {/* Anwender + Verantwortung */}
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Anwender" hint="Mehrfachauswahl">
+            <div className="flex flex-wrap gap-2 mt-0.5">
+              {rlAnwender.map(opt => {
+                const checked = (form.anwender || []).includes(opt);
+                return (
+                  <label key={opt} onClick={() => toggleList('anwender', opt)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer transition-colors select-none text-[12.5px] font-medium ${checked ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-line text-ink-500 hover:border-line-strong'}`}>
+                    {opt}
+                  </label>
+                );
+              })}
+            </div>
+          </Field>
+          {rlRollen.length > 0 && (
+            <Field label="Verantwortung" hint="Mehrfachauswahl">
+              <div className="flex flex-wrap gap-2 mt-0.5">
+                {rlRollen.map(opt => {
+                  const checked = (form.rollen || []).includes(opt);
+                  return (
+                    <label key={opt} onClick={() => toggleList('rollen', opt)}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer transition-colors select-none text-[12.5px] font-medium ${checked ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-line text-ink-500 hover:border-line-strong'}`}>
+                      {opt}
+                    </label>
+                  );
+                })}
+              </div>
+            </Field>
+          )}
+        </div>
 
         {/* PDF-Anhang */}
         <Field label="PDF-Dokument">
@@ -1609,17 +1625,14 @@ const RichtlinieForm = ({ initial, onSave, onClose, anforderungen }) => {
                 <Icon name="file-text" cls="w-4 h-4 text-ink-400 flex-shrink-0"/>
                 <span className="text-[13px] text-ink-700 truncate">{form.pdf.name}</span>
                 <span className="text-[11px] text-ink-400 flex-shrink-0">({Math.round(form.pdf.size / 1024)} KB)</span>
-                <button onClick={() => set('pdf', null)} className="ml-auto text-ink-300 hover:text-rose-600 transition-colors">
-                  <Icon name="x" cls="w-3.5 h-3.5"/>
-                </button>
+                <button onClick={() => set('pdf', null)} className="ml-auto text-ink-300 hover:text-rose-600 transition-colors"><Icon name="x" cls="w-3.5 h-3.5"/></button>
               </div>
             ) : (
               <div className="flex-1 px-3 py-2 bg-ink-50 rounded-lg border border-dashed border-line text-[13px] text-ink-400">
                 {pdfLoading ? 'Wird geladen…' : 'Kein Dokument angehängt'}
               </div>
             )}
-            <button type="button" onClick={() => pdfRef.current.click()}
-              className="btn btn-outline btn-sm flex-shrink-0">
+            <button type="button" onClick={() => pdfRef.current.click()} className="btn btn-outline btn-sm flex-shrink-0">
               <Icon name="paperclip" cls="w-3.5 h-3.5"/> Datei wählen
             </button>
             <input ref={pdfRef} type="file" accept=".pdf" className="hidden" onChange={handlePdf}/>
@@ -1628,35 +1641,77 @@ const RichtlinieForm = ({ initial, onSave, onClose, anforderungen }) => {
         </Field>
 
         {/* Verknüpfte Anforderungen */}
-        <Field label="Verknüpfte Anforderungen" hint="Mehrfachauswahl möglich">
+        <Field label="Verknüpfte Anforderungen"
+          hint={form.anforderungen_ids.length > 0 ? `${form.anforderungen_ids.length} ausgewählt` : 'Mehrfachauswahl'}>
           {anforderungen.length === 0 ? (
             <p className="text-[12.5px] text-ink-400 py-2">Noch keine Anforderungen vorhanden.</p>
-          ) : (
-            <div className="max-h-[180px] overflow-y-auto border border-line rounded-lg divide-y divide-line">
-              {anforderungen.map(a => {
-                const checked = form.anforderungen_ids.includes(a.id);
-                return (
-                  <label key={a.id} onClick={() => toggleAnforderung(a.id)}
-                    className={`flex items-start gap-3 px-3 py-2.5 cursor-pointer transition-colors select-none ${checked ? 'bg-brand-50' : 'hover:bg-ink-50'}`}>
-                    <span className={`mt-0.5 w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${checked ? 'bg-brand-600 border-brand-600' : 'border-ink-200'}`}>
-                      {checked && <Icon name="check" cls="w-2.5 h-2.5 text-white"/>}
-                    </span>
-                    <div className="min-w-0">
-                      <span className="text-[11px] font-mono font-semibold text-brand-600 mr-2">{a.anforderung_id}</span>
-                      <span className="text-[12.5px] text-ink-700 line-clamp-1">{a.beschreibung}</span>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-          )}
+          ) : (() => {
+            const anfKats = ['alle', ...Object.keys(
+              anforderungen.reduce((acc, a) => { if (a.kategorie) acc[a.kategorie] = 1; return acc; }, {})
+            )];
+            const filteredAnf = anforderungen.filter(a => {
+              const q = anfSearch.toLowerCase();
+              const matchQ = !q || a.anforderung_id.toLowerCase().includes(q) || (a.beschreibung || '').toLowerCase().includes(q);
+              const matchK = anfKatFilter === 'alle' || a.kategorie === anfKatFilter;
+              return matchQ && matchK;
+            }).sort((a, b) => a.anforderung_id.localeCompare(b.anforderung_id));
+            return (
+              <div className="border border-line rounded-lg overflow-hidden">
+                <div className="flex items-center border-b border-line bg-[#f7fafb]">
+                  <div className="search-wrap flex-1 min-w-0 border-r border-line">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                      <circle cx="11" cy="11" r="7"/><path strokeLinecap="round" d="m20 20-3.5-3.5"/>
+                    </svg>
+                    <input className="field rounded-none border-0 shadow-none focus:ring-0 bg-transparent text-[12.5px]"
+                      placeholder="ID oder Beschreibung suchen…"
+                      value={anfSearch} onChange={e => setAnfSearch(e.target.value)}/>
+                  </div>
+                  <select className="field rounded-none border-0 shadow-none focus:ring-0 bg-transparent text-[12.5px] w-[180px] flex-shrink-0"
+                    value={anfKatFilter} onChange={e => setAnfKatFilter(e.target.value)}>
+                    {anfKats.map(k => <option key={k} value={k}>{k === 'alle' ? 'Alle Kategorien' : k}</option>)}
+                  </select>
+                  {(anfSearch || anfKatFilter !== 'alle') && (
+                    <button onClick={() => { setAnfSearch(''); setAnfKatFilter('alle'); }}
+                      className="px-2 py-1 text-ink-300 hover:text-ink-700 transition-colors flex-shrink-0 border-l border-line">
+                      <Icon name="x" cls="w-3.5 h-3.5"/>
+                    </button>
+                  )}
+                </div>
+                <div className="max-h-[220px] overflow-y-auto divide-y divide-line">
+                  {filteredAnf.length === 0 ? (
+                    <p className="px-4 py-6 text-center text-[12.5px] text-ink-400">Keine Treffer</p>
+                  ) : filteredAnf.map(a => {
+                    const checked = form.anforderungen_ids.includes(a.id);
+                    return (
+                      <label key={a.id} onClick={() => toggleAnforderung(a.id)}
+                        className={`flex items-start gap-3 px-3 py-2.5 cursor-pointer transition-colors select-none ${checked ? 'bg-brand-50' : 'hover:bg-ink-50'}`}>
+                        <span className={`mt-0.5 w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${checked ? 'bg-brand-600 border-brand-600' : 'border-ink-200'}`}>
+                          {checked && <Icon name="check" cls="w-2.5 h-2.5 text-white"/>}
+                        </span>
+                        <div className="min-w-0">
+                          <span className="text-[11px] font-mono font-semibold text-brand-600 mr-2">{a.anforderung_id}</span>
+                          <span className="text-[12.5px] text-ink-500 mr-2">{a.kategorie}{a.unterkategorie ? ' · ' + a.unterkategorie : ''}</span>
+                          <span className="text-[12.5px] text-ink-700 line-clamp-1">{a.beschreibung}</span>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+                {form.anforderungen_ids.length > 0 && (
+                  <div className="border-t border-line bg-[#f7fafb] px-3 py-2 flex items-center justify-between">
+                    <span className="text-[11.5px] text-ink-500">{form.anforderungen_ids.length} Anforderung{form.anforderungen_ids.length !== 1 ? 'en' : ''} verknüpft</span>
+                    <button onClick={() => setForm(f => ({ ...f, anforderungen_ids: [] }))}
+                      className="text-[11.5px] text-ink-400 hover:text-[#a13d36] transition-colors">Alle entfernen</button>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </Field>
 
         <div className="flex justify-end gap-2 pt-2 border-t border-line">
           <button onClick={onClose} className="btn btn-ghost">Abbrechen</button>
-          <button onClick={handleSave} className="btn btn-primary">
-            {isEdit ? 'Speichern' : 'Richtlinie erstellen'}
-          </button>
+          <button onClick={handleSave} className="btn btn-primary">{isEdit ? 'Speichern' : 'Richtlinie erstellen'}</button>
         </div>
       </div>
     </Modal>
@@ -1664,7 +1719,7 @@ const RichtlinieForm = ({ initial, onSave, onClose, anforderungen }) => {
 };
 
 // ── RichtlinieDetailPanel ──────────────────────────────────────────────────
-const RichtlinieDetailPanel = ({ richtlinie, onEdit, onClose, anforderungen }) => {
+const RichtlinieDetailPanel = ({ richtlinie, onEdit, onClose, anforderungen, canEdit }) => {
   const linkedAnf = anforderungen.filter(a => (richtlinie.anforderungen_ids || []).includes(a.id));
 
   const downloadPdf = () => {
@@ -1679,9 +1734,9 @@ const RichtlinieDetailPanel = ({ richtlinie, onEdit, onClose, anforderungen }) =
       footer={
         <>
           <button onClick={onClose} className="btn btn-ghost">Schließen</button>
-          <button onClick={onEdit} className="btn btn-primary">
+          {canEdit && <button onClick={onEdit} className="btn btn-primary">
             <Icon name="edit" cls="w-3.5 h-3.5"/> Bearbeiten
-          </button>
+          </button>}
         </>
       }>
       <div className="space-y-6">
@@ -1701,7 +1756,15 @@ const RichtlinieDetailPanel = ({ richtlinie, onEdit, onClose, anforderungen }) =
           </div>
           <div>
             <span className="lbl">Verantwortung</span>
-            <p className="text-[13.5px] text-ink-900">{richtlinie.verantwortung || '—'}</p>
+            <div className="flex flex-wrap gap-1.5 mt-0.5">
+              {(richtlinie.rollen || []).length === 0
+                ? <span className="text-[13px] text-ink-400">—</span>
+                : (richtlinie.rollen || []).map(r => (
+                  <span key={r} className="inline-flex items-center gap-1 px-2 py-0.5 bg-ink-50 border border-line rounded text-[12px] text-ink-700">
+                    <Icon name="user" cls="w-3 h-3 text-ink-400"/>{r}
+                  </span>
+                ))}
+            </div>
           </div>
           <div>
             <span className="lbl">Anwender</span>
@@ -1762,7 +1825,9 @@ const RichtlinieDetailPanel = ({ richtlinie, onEdit, onClose, anforderungen }) =
 };
 
 // ── RichtlinienView ───────────────────────────────────────────────────────
-const RichtlinienView = ({ richtlinien, onCreate, onView, onEdit, onDelete }) => {
+const RichtlinienView = ({ richtlinien, onCreate, onView, onEdit, onDelete, config, canEdit, canDelete }) => {
+  const rlKategorien = config?.rlKategorien || DEFAULT_CONFIG.richtlinien.kategorien;
+  const rlArt        = config?.rlArt        || DEFAULT_CONFIG.richtlinien.art;
   const [search, setSearch] = useState('');
   const [katFilter, setKatFilter] = useState('alle');
   const [artFilter, setArtFilter] = useState('alle');
@@ -1776,13 +1841,12 @@ const RichtlinienView = ({ richtlinien, onCreate, onView, onEdit, onDelete }) =>
   }).sort((a, b) => a.richtlinie_id.localeCompare(b.richtlinie_id));
 
   const hasFilter = search || katFilter !== 'alle' || artFilter !== 'alle';
+  const katKeys = Object.keys(rlKategorien);
 
   const stats = useMemo(() => ({
-    is:  richtlinien.filter(r => r.kategorie === 'Informationssicherheit').length,
-    bcm: richtlinien.filter(r => r.kategorie === 'BCM').length,
-    rm:  richtlinien.filter(r => r.kategorie === 'Risikomanagement').length,
-    pdf: richtlinien.filter(r => r.pdf).length,
-  }), [richtlinien]);
+    gesamt: richtlinien.length,
+    kategorien: katKeys.reduce((acc, k) => ({ ...acc, [k]: richtlinien.filter(r => r.kategorie === k).length }), {}),
+  }), [richtlinien, katKeys.join(',')]);
 
   return (
     <div className="space-y-6">
@@ -1792,52 +1856,50 @@ const RichtlinienView = ({ richtlinien, onCreate, onView, onEdit, onDelete }) =>
           <h1 className="text-[28px] font-medium text-ink-900 tracking-tight leading-none">Richtlinien</h1>
           <p className="text-[13px] text-ink-400 mt-2">Strategien, Richtlinien, Leitlinien und Verfahrensanweisungen verwalten.</p>
         </div>
-        <button onClick={onCreate} className="btn btn-primary">
+        {canEdit && <button onClick={onCreate} className="btn btn-primary">
           <Icon name="plus" cls="w-3.5 h-3.5"/> Neue Richtlinie
-        </button>
+        </button>}
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-3">
-        <StatCard label="Gesamt" value={richtlinien.length} accent="black" icon="book"/>
-        <StatCard label="Informationssicherheit" value={stats.is} accent="petrol" icon="shield"/>
-        <StatCard label="BCM" value={stats.bcm} accent="yellow" icon="layers"/>
-        <StatCard label="Risikomanagement" value={stats.rm} accent="red" icon="shield-alert"/>
+      <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(katKeys.length + 1, 5)}, 1fr)` }}>
+        <StatCard label="Gesamt" value={stats.gesamt} accent="black" icon="book"/>
+        {katKeys.slice(0, 4).map((k, i) => (
+          <StatCard key={k} label={k} value={stats.kategorien[k] || 0} accent={['petrol','yellow','red','ink'][i] || 'ink'} icon="layers"/>
+        ))}
       </div>
 
       {/* Toolbar */}
-      <div className="card shadow-soft flex items-center gap-0 overflow-hidden">
-        <div className="search-wrap flex-1 min-w-0 border-r border-line">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path strokeLinecap="round" d="m20 20-3.5-3.5"/></svg>
-          <input className="field rounded-none border-0 shadow-none focus:ring-0 focus:border-0 bg-transparent"
-            placeholder="Suche nach ID, Titel, Kategorie…" value={search} onChange={e => setSearch(e.target.value)}/>
-        </div>
-        <div className="border-r border-line shrink-0">
-          <select className="field rounded-none border-0 shadow-none focus:ring-0 bg-transparent w-[200px]"
-            value={katFilter} onChange={e => setKatFilter(e.target.value)}>
-            <option value="alle">Alle Kategorien</option>
-            {RICHTLINIEN_KATEGORIEN.map(k => <option key={k}>{k}</option>)}
+      <div className="toolbar">
+        <label className={`toolbar-seg seg-search ${search ? 'is-active' : ''}`}>
+          <Icon name="search" cls="seg-ico"/>
+          <input placeholder="Suche nach ID, Titel, Kategorie…" value={search} onChange={e => setSearch(e.target.value)}/>
+        </label>
+        <label className={`toolbar-seg has-select ${katFilter !== 'alle' ? 'is-active' : ''}`} style={{ flex: '1 1 0', minWidth: 0 }}>
+          <Icon name="layers" cls="seg-ico"/>
+          <span className="seg-label">Kategorie</span>
+          <select value={katFilter} onChange={e => setKatFilter(e.target.value)} style={{ flex: 1, minWidth: 0 }}>
+            <option value="alle">Alle</option>
+            {katKeys.map(k => <option key={k}>{k}</option>)}
           </select>
-        </div>
-        <div className="shrink-0">
-          <select className="field rounded-none border-0 shadow-none focus:ring-0 bg-transparent w-[180px]"
-            value={artFilter} onChange={e => setArtFilter(e.target.value)}>
-            <option value="alle">Alle Arten</option>
-            {RICHTLINIEN_ART.map(a => <option key={a}>{a}</option>)}
+        </label>
+        <label className={`toolbar-seg has-select ${artFilter !== 'alle' ? 'is-active' : ''}`} style={{ flex: '1 1 0', minWidth: 0 }}>
+          <Icon name="book" cls="seg-ico"/>
+          <span className="seg-label">Art</span>
+          <select value={artFilter} onChange={e => setArtFilter(e.target.value)} style={{ flex: 1, minWidth: 0 }}>
+            <option value="alle">Alle</option>
+            {rlArt.map(a => <option key={a}>{a}</option>)}
           </select>
-        </div>
+        </label>
         {hasFilter && (
-          <>
-            <div className="w-px self-stretch bg-line shrink-0"/>
-            <button onClick={() => { setSearch(''); setKatFilter('alle'); setArtFilter('alle'); }}
-              className="btn btn-ghost btn-sm mx-2 shrink-0">
-              <Icon name="x" cls="w-3.5 h-3.5"/> Zurücksetzen
-            </button>
-          </>
+          <button onClick={() => { setSearch(''); setKatFilter('alle'); setArtFilter('alle'); }} className="toolbar-reset">
+            <Icon name="x" cls="w-3.5 h-3.5"/> Zurücksetzen
+          </button>
         )}
-        <span className="ml-auto pr-4 text-[12px] text-ink-400 font-mono shrink-0 border-l border-line pl-4 py-2 self-stretch flex items-center">
-          {filtered.length} / {richtlinien.length}
-        </span>
+        <div className="toolbar-count">
+          {hasFilter && <span className="count-dot"/>}
+          <span><b>{filtered.length}</b> von {richtlinien.length}</span>
+        </div>
       </div>
 
       {/* Tabelle */}
@@ -1849,7 +1911,7 @@ const RichtlinienView = ({ richtlinien, onCreate, onView, onEdit, onDelete }) =>
             </div>
             <p className="text-[15px] font-medium text-ink-900 mb-1">{hasFilter ? 'Keine Treffer' : 'Noch keine Richtlinien'}</p>
             <p className="text-[13px] text-ink-400 mb-5">{hasFilter ? 'Passe die Filter an oder setze sie zurück.' : 'Erstelle deine erste Richtlinie.'}</p>
-            {!hasFilter && <button onClick={onCreate} className="btn btn-primary"><Icon name="plus" cls="w-3.5 h-3.5"/> Neue Richtlinie</button>}
+            {!hasFilter && canEdit && <button onClick={onCreate} className="btn btn-primary"><Icon name="plus" cls="w-3.5 h-3.5"/> Neue Richtlinie</button>}
           </div>
         ) : (
           <table className="data-table" style={{ minWidth: '900px' }}>
@@ -1888,16 +1950,16 @@ const RichtlinienView = ({ richtlinien, onCreate, onView, onEdit, onDelete }) =>
                   <td><p className="text-[12.5px] text-ink-700">{r.kategorie}</p></td>
                   <td><span className="tag">{r.art}</span></td>
                   <td><VertraulichkeitBadge id={r.vertraulichkeit}/></td>
-                  <td onClick={e => e.stopPropagation()}>
+                  {(canEdit || canDelete) && <td onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-0.5 justify-end">
-                      <button onClick={() => onEdit(r)} className="p-1.5 rounded-md text-ink-400 hover:text-ink-900 hover:bg-ink-50 transition-colors" title="Bearbeiten">
+                      {canEdit && <button onClick={() => onEdit(r)} className="p-1.5 rounded-md text-ink-400 hover:text-ink-900 hover:bg-ink-50 transition-colors" title="Bearbeiten">
                         <Icon name="edit" cls="w-3.5 h-3.5"/>
-                      </button>
-                      <button onClick={() => onDelete(r.id)} className="p-1.5 rounded-md text-ink-400 hover:text-[#a13d36] hover:bg-rose-50 transition-colors" title="Löschen">
+                      </button>}
+                      {canDelete && <button onClick={() => onDelete(r.id)} className="p-1.5 rounded-md text-ink-400 hover:text-[#a13d36] hover:bg-rose-50 transition-colors" title="Löschen">
                         <Icon name="trash" cls="w-3.5 h-3.5"/>
-                      </button>
+                      </button>}
                     </div>
-                  </td>
+                  </td>}
                 </tr>
               ))}
             </tbody>
@@ -1908,17 +1970,264 @@ const RichtlinienView = ({ richtlinien, onCreate, onView, onEdit, onDelete }) =>
   );
 };
 
+// ── LoginScreen ────────────────────────────────────────────────────────────
+const SetupScreen = ({ onCreate }) => {
+  const [name, setName] = useState('');
+  const [pin, setPin]   = useState('');
+  const [pin2, setPin2] = useState('');
+  const [err, setErr]   = useState('');
+  const handle = async () => {
+    if (!name.trim()) return setErr('Bitte einen Namen eingeben.');
+    if (pin.length < 4) return setErr('PIN muss mindestens 4 Zeichen haben.');
+    if (pin !== pin2) return setErr('PINs stimmen nicht überein.');
+    const hashed = await hashPin(pin);
+    onCreate({ id: uuid(), name: name.trim(), role: 'admin', pin: hashed });
+  };
+  return (
+    <div className="min-h-screen bg-[#eef3f7] flex items-center justify-center p-6">
+      <div className="card shadow-soft w-full max-w-sm p-8 space-y-6">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-brand-600 flex items-center justify-center">
+            <Icon name="shield" cls="w-6 h-6 text-white"/>
+          </div>
+          <div className="text-center">
+            <h1 className="text-[20px] font-semibold text-ink-900">Ersteinrichtung</h1>
+            <p className="text-[13px] text-ink-400 mt-1">Lege den ersten Admin-Benutzer an.</p>
+          </div>
+        </div>
+        <div className="space-y-3">
+          <Field label="Name"><input className="field" value={name} onChange={e => setName(e.target.value)} placeholder="Dein Name"/></Field>
+          <Field label="PIN"><input className="field" type="password" value={pin} onChange={e => setPin(e.target.value)} placeholder="Mindestens 4 Zeichen"/></Field>
+          <Field label="PIN bestätigen"><input className="field" type="password" value={pin2} onChange={e => setPin2(e.target.value)} placeholder="PIN wiederholen"/></Field>
+          {err && <p className="text-[12px] text-[#a13d36]">{err}</p>}
+        </div>
+        <button onClick={handle} className="btn btn-primary w-full justify-center">Admin-Konto erstellen</button>
+      </div>
+    </div>
+  );
+};
+
+const LoginScreen = ({ users, onLogin, onFirstSetup }) => {
+  const [selected, setSelected] = useState(null);
+  const [pin, setPin]           = useState('');
+  const [err, setErr]           = useState('');
+
+  if (!users || users.length === 0) return <SetupScreen onCreate={onFirstSetup}/>;
+
+  const handleLogin = async () => {
+    const hashed = await hashPin(pin);
+    if (hashed === selected.pin) {
+      onLogin({ id: selected.id, name: selected.name, role: selected.role });
+    } else {
+      setErr('Falsche PIN. Bitte erneut versuchen.');
+      setPin('');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#eef3f7] flex items-center justify-center p-6">
+      <div className="card shadow-soft w-full max-w-sm p-8 space-y-6">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-brand-600 flex items-center justify-center">
+            <Icon name="shield" cls="w-6 h-6 text-white"/>
+          </div>
+          <div className="text-center">
+            <h1 className="text-[20px] font-semibold text-ink-900">Compliance-Management</h1>
+            <p className="text-[13px] text-ink-400 mt-1">{selected ? 'PIN eingeben' : 'Wer bist du?'}</p>
+          </div>
+        </div>
+        {!selected ? (
+          <div className="space-y-2">
+            {users.map(u => (
+              <button key={u.id} onClick={() => { setSelected(u); setPin(''); setErr(''); }}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-line bg-white hover:border-brand-400 hover:bg-brand-50 transition-colors text-left">
+                <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 text-[13px] font-semibold flex-shrink-0">
+                  {u.name.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13.5px] font-medium text-ink-900">{u.name}</p>
+                </div>
+                <span className={`text-[11px] font-medium px-2 py-0.5 rounded border ${ROLE_COLORS[u.role]}`}>{ROLE_LABELS[u.role]}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <button onClick={() => { setSelected(null); setPin(''); setErr(''); }}
+              className="flex items-center gap-2 text-[12.5px] text-ink-400 hover:text-ink-700 transition-colors">
+              <Icon name="chevron-left" cls="w-3.5 h-3.5"/> Zurück
+            </button>
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-ink-50 border border-line">
+              <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 text-[13px] font-semibold">
+                {selected.name.charAt(0).toUpperCase()}
+              </div>
+              <p className="text-[13.5px] font-medium text-ink-900">{selected.name}</p>
+            </div>
+            <Field label="PIN">
+              <input className="field" type="password" value={pin} autoFocus
+                onChange={e => { setPin(e.target.value); setErr(''); }}
+                onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                placeholder="PIN eingeben"/>
+            </Field>
+            {err && <p className="text-[12px] text-[#a13d36]">{err}</p>}
+            <button onClick={handleLogin} className="btn btn-primary w-full justify-center">Anmelden</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── StartseiteView ──────────────────────────────────────────────────────────
+const StartseiteView = ({ session, data, onEditWelcome, isAdmin }) => {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft]     = useState('');
+  const welcomeText = data?.config?.welcomeText || '';
+  const anf = data?.anforderungen || [];
+  const rl  = data?.richtlinien  || [];
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-[32px] font-medium text-ink-900 tracking-tight leading-none">
+          Hallo, {session.name}!
+        </h1>
+        {editing ? (
+          <div className="mt-4 space-y-2">
+            <textarea className="field w-full" rows={3} value={draft}
+              onChange={e => setDraft(e.target.value)}
+              placeholder="Willkommenstext eingeben…"/>
+            <div className="flex gap-2">
+              <button onClick={() => { onEditWelcome(draft); setEditing(false); }} className="btn btn-primary">Speichern</button>
+              <button onClick={() => setEditing(false)} className="btn btn-ghost">Abbrechen</button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-3 flex items-start gap-3">
+            {welcomeText
+              ? <p className="text-[15px] text-ink-500 leading-relaxed flex-1">{welcomeText}</p>
+              : <p className="text-[14px] text-ink-300 italic flex-1">Noch kein Willkommenstext konfiguriert.</p>
+            }
+            {isAdmin && <button onClick={() => { setDraft(welcomeText); setEditing(true); }}
+              className="p-1.5 rounded-md text-ink-300 hover:text-ink-700 hover:bg-ink-100 transition-colors flex-shrink-0">
+              <Icon name="edit" cls="w-3.5 h-3.5"/>
+            </button>}
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <StatCard label="Anforderungen" value={anf.length} accent="petrol" icon="list"/>
+        <StatCard label="Richtlinien"   value={rl.length}  accent="black"  icon="book"/>
+      </div>
+    </div>
+  );
+};
+
+// ── BenutzerView ────────────────────────────────────────────────────────────
+const BenutzerForm = ({ initial, onSave, onClose, currentUserId }) => {
+  const isEdit = !!initial?.id;
+  const [name, setName]   = useState(initial?.name || '');
+  const [role, setRole]   = useState(initial?.role || 'leser');
+  const [pin, setPin]     = useState('');
+  const [pin2, setPin2]   = useState('');
+  const [err, setErr]     = useState('');
+
+  const handle = async () => {
+    if (!name.trim()) return setErr('Bitte einen Namen eingeben.');
+    if (!isEdit || pin) {
+      if (pin.length < 4) return setErr('PIN muss mindestens 4 Zeichen haben.');
+      if (pin !== pin2)   return setErr('PINs stimmen nicht überein.');
+    }
+    const hashed = pin ? await hashPin(pin) : initial.pin;
+    onSave({ ...(initial || {}), id: initial?.id || uuid(), name: name.trim(), role, pin: hashed });
+  };
+
+  return (
+    <Modal title={isEdit ? 'Benutzer bearbeiten' : 'Neuer Benutzer'} onClose={onClose}
+      footer={<><button onClick={onClose} className="btn btn-ghost">Abbrechen</button><button onClick={handle} className="btn btn-primary">Speichern</button></>}>
+      <div className="space-y-4">
+        <Field label="Name" required><input className="field" value={name} onChange={e => setName(e.target.value)} placeholder="Vollständiger Name"/></Field>
+        <Field label="Rolle">
+          <div className="flex gap-2">
+            {['leser','schreiber','admin'].map(r => (
+              <label key={r} onClick={() => setRole(r)}
+                className={`flex-1 text-center px-3 py-2 rounded-lg border cursor-pointer text-[12.5px] font-medium transition-colors ${role === r ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-line text-ink-500 hover:border-line-strong'}`}>
+                {ROLE_LABELS[r]}
+              </label>
+            ))}
+          </div>
+          <p className="text-[11.5px] text-ink-400 mt-1.5">
+            {role === 'leser' ? 'Kann nur lesen, nichts bearbeiten.' : role === 'schreiber' ? 'Kann anlegen und bearbeiten, aber nicht löschen.' : 'Voller Zugriff inkl. Löschen und Einstellungen.'}
+          </p>
+        </Field>
+        <Field label={isEdit ? 'Neue PIN (leer lassen = unverändert)' : 'PIN'} required={!isEdit}>
+          <input className="field" type="password" value={pin} onChange={e => setPin(e.target.value)} placeholder={isEdit ? 'Nur ausfüllen zum Ändern' : 'Mindestens 4 Zeichen'}/>
+        </Field>
+        {(!isEdit || pin) && (
+          <Field label="PIN bestätigen" required>
+            <input className="field" type="password" value={pin2} onChange={e => setPin2(e.target.value)} placeholder="PIN wiederholen"/>
+          </Field>
+        )}
+        {err && <p className="text-[12px] text-[#a13d36]">{err}</p>}
+      </div>
+    </Modal>
+  );
+};
+
+const BenutzerView = ({ users, session, onCreate, onEdit, onDelete }) => (
+  <div className="space-y-6">
+    <div className="flex items-end justify-between gap-6">
+      <div>
+        <h1 className="text-[28px] font-medium text-ink-900 tracking-tight leading-none">Benutzerverwaltung</h1>
+        <p className="text-[13px] text-ink-400 mt-2">Benutzer und Zugriffsrechte verwalten.</p>
+      </div>
+      <button onClick={onCreate} className="btn btn-primary"><Icon name="plus" cls="w-3.5 h-3.5"/> Neuer Benutzer</button>
+    </div>
+    <div className="card shadow-soft overflow-hidden">
+      <table className="data-table">
+        <thead><tr><th>Name</th><th>Rolle</th><th></th></tr></thead>
+        <tbody>
+          {users.map(u => (
+            <tr key={u.id}>
+              <td>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 text-[12px] font-semibold flex-shrink-0">
+                    {u.name.charAt(0).toUpperCase()}
+                  </div>
+                  <p className="text-[13.5px] font-medium text-ink-900">{u.name}{u.id === session.id && <span className="ml-2 text-[11px] text-ink-400">(ich)</span>}</p>
+                </div>
+              </td>
+              <td><span className={`text-[11.5px] font-medium px-2 py-0.5 rounded border ${ROLE_COLORS[u.role]}`}>{ROLE_LABELS[u.role]}</span></td>
+              <td onClick={e => e.stopPropagation()}>
+                <div className="flex items-center gap-0.5 justify-end">
+                  <button onClick={() => onEdit(u)} className="p-1.5 rounded-md text-ink-400 hover:text-ink-900 hover:bg-ink-50 transition-colors" title="Bearbeiten"><Icon name="edit" cls="w-3.5 h-3.5"/></button>
+                  {u.id !== session.id && <button onClick={() => onDelete(u.id)} className="p-1.5 rounded-md text-ink-400 hover:text-[#a13d36] hover:bg-rose-50 transition-colors" title="Löschen"><Icon name="trash" cls="w-3.5 h-3.5"/></button>}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+);
+
 // ── App ────────────────────────────────────────────────────────────────────
 const App = () => {
   const [data, setData] = useState(() => loadData() || SEED);
-  const [view, setView] = useState('anforderungen'); // 'anforderungen' | 'richtlinien'
+  const [session, setSession] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem(SESSION_KEY)); } catch { return null; }
+  });
+  const [view, setView] = useState('start');
   const [showSettings, setShowSettings] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [anforderungModal, setAnforderungModal] = useState(null);
   const [anforderungDetail, setAnforderungDetail] = useState(null);
   const [richtlinieModal, setRichtlinieModal] = useState(null);
   const [richtlinieDetail, setRichtlinieDetail] = useState(null);
-  const [syncStatus, setSyncStatus] = useState('idle'); // 'idle'|'syncing'|'synced'|'error'
+  const [benutzerModal, setBenutzerModal] = useState(null);
+  const [syncStatus, setSyncStatus] = useState('idle');
   const gistLoadedRef = useRef(false);
   const saveTimerRef  = useRef(null);
 
@@ -1956,6 +2265,21 @@ const App = () => {
     }, 1500);
   }, [data]);
 
+  const handleLogin = (sess) => {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(sess));
+    setSession(sess);
+    setView('start');
+  };
+  const handleLogout = () => {
+    sessionStorage.removeItem(SESSION_KEY);
+    setSession(null);
+  };
+  const handleFirstSetup = (user) => {
+    const newData = { ...data, users: [user] };
+    setData(newData);
+    handleLogin({ id: user.id, name: user.name, role: user.role });
+  };
+
   const handleConnectGist = async (token) => {
     localStorage.setItem(GIST_TOKEN_KEY, token);
     localStorage.removeItem(GIST_ID_KEY);
@@ -1964,12 +2288,30 @@ const App = () => {
     await saveToGist(token, gistId, data);
     setSyncStatus('synced');
   };
-
   const handleDisconnectGist = () => {
     if (!confirm('Cloud-Sync trennen? Daten bleiben lokal erhalten.')) return;
     localStorage.removeItem(GIST_TOKEN_KEY);
     localStorage.removeItem(GIST_ID_KEY);
     setSyncStatus('idle');
+  };
+
+  // ── Benutzer CRUD ──
+  const createBenutzer = (form) => {
+    setData(d => ({ ...d, users: [...(d.users || []), form] }));
+    setBenutzerModal(null);
+  };
+  const updateBenutzer = (form) => {
+    setData(d => ({ ...d, users: (d.users || []).map(u => u.id === form.id ? form : u) }));
+    if (session?.id === form.id) {
+      const updated = { id: form.id, name: form.name, role: form.role };
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(updated));
+      setSession(updated);
+    }
+    setBenutzerModal(null);
+  };
+  const deleteBenutzer = (id) => {
+    if (!confirm('Benutzer wirklich löschen?')) return;
+    setData(d => ({ ...d, users: (d.users || []).filter(u => u.id !== id) }));
   };
 
   // ── Anforderungen CRUD ──
@@ -2007,13 +2349,31 @@ const App = () => {
     setData(d => ({ ...d, richtlinien: (d.richtlinien || []).filter(r => r.id !== id) }));
   };
 
-  const anf = data.anforderungen || [];
-  const rl  = data.richtlinien  || [];
+  const handleConfigChange  = (newConfig) => setData(d => ({ ...d, config: newConfig }));
+  const handleWelcomeChange = (text) => setData(d => ({ ...d, config: { ...(d.config || DEFAULT_CONFIG), welcomeText: text } }));
+
+  const anf     = data.anforderungen || [];
+  const rl      = data.richtlinien  || [];
+  const users   = data.users || [];
+  const cfg     = getConfig(data);
+  const isAdmin   = session?.role === 'admin';
+  const canEdit   = session?.role === 'schreiber' || isAdmin;
+  const canDelete = isAdmin;
 
   const navItems = [
-    { id: 'anforderungen', label: 'Anforderungen', icon: 'list',  count: anf.length },
-    { id: 'richtlinien',   label: 'Richtlinien',   icon: 'book',  count: rl.length  },
+    { id: 'start',         label: 'Start',               icon: 'home'   },
+    { id: 'anforderungen', label: 'Anforderungen',        icon: 'list',  count: anf.length },
+    { id: 'richtlinien',   label: 'Richtlinien',          icon: 'book',  count: rl.length  },
+    ...(isAdmin ? [{ id: 'benutzer', label: 'Benutzerverwaltung', icon: 'users', count: users.length }] : []),
   ];
+
+  if (!session) return (
+    <LoginScreen
+      users={users}
+      onLogin={handleLogin}
+      onFirstSetup={handleFirstSetup}
+    />
+  );
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -2025,7 +2385,7 @@ const App = () => {
           </div>
           {sidebarOpen && (
             <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-semibold text-ink-900 leading-tight tracking-tight">Compliance</p>
+              <p className="text-[13px] font-semibold text-ink-900 leading-tight tracking-tight">Compliance-</p>
               <p className="text-[11px] text-ink-400 leading-tight">Management</p>
             </div>
           )}
@@ -2042,7 +2402,7 @@ const App = () => {
         )}
 
         <nav className="flex-1 px-2 py-3 space-y-0.5">
-          {sidebarOpen && <p className="px-2 mb-1.5 text-[10px] font-medium text-ink-300 uppercase tracking-wider">Bibliothek</p>}
+          {sidebarOpen && <p className="px-2 mb-1.5 text-[10px] font-medium text-ink-300 uppercase tracking-wider">Navigation</p>}
           {navItems.map(item => (
             <button key={item.id} onClick={() => setView(item.id)}
               className={`nav-item w-full ${view === item.id ? 'active' : ''}`}>
@@ -2050,7 +2410,7 @@ const App = () => {
               {sidebarOpen && (
                 <>
                   <span className="flex-1 text-left">{item.label}</span>
-                  <span className="font-mono text-[10.5px] opacity-60">{item.count}</span>
+                  {item.count != null && <span className="font-mono text-[10.5px] opacity-60">{item.count}</span>}
                 </>
               )}
             </button>
@@ -2062,33 +2422,48 @@ const App = () => {
             <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg">
               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                 syncStatus === 'synced'  ? 'bg-[#4a8a7a]' :
-                syncStatus === 'syncing' ? 'bg-petrol-400 animate-pulse' :
-                'bg-[#b53a31]'
+                syncStatus === 'syncing' ? 'bg-petrol-400 animate-pulse' : 'bg-[#b53a31]'
               }`}/>
               <span className={`text-[11px] font-medium ${
                 syncStatus === 'synced'  ? 'text-[#2e5a4d]' :
-                syncStatus === 'syncing' ? 'text-petrol-600' :
-                'text-[#a13d36]'
-              }`}>{
-                syncStatus === 'synced'  ? 'Synchronisiert' :
-                syncStatus === 'syncing' ? 'Synchronisiere…' :
-                'Sync-Fehler'
-              }</span>
+                syncStatus === 'syncing' ? 'text-petrol-600' : 'text-[#a13d36]'
+              }`}>{syncStatus === 'synced' ? 'Synchronisiert' : syncStatus === 'syncing' ? 'Synchronisiere…' : 'Sync-Fehler'}</span>
             </div>
           )}
-          <button onClick={() => setShowSettings(true)} className="nav-item w-full">
-            <Icon name="settings" cls="w-3.5 h-3.5 flex-shrink-0"/>
-            {sidebarOpen && 'Einstellungen'}
-          </button>
+          {isAdmin && (
+            <button onClick={() => setShowSettings(true)} className="nav-item w-full">
+              <Icon name="settings" cls="w-3.5 h-3.5 flex-shrink-0"/>
+              {sidebarOpen && 'Einstellungen'}
+            </button>
+          )}
+          {sidebarOpen && (
+            <div className="flex items-center gap-2 px-2 py-2 mt-1">
+              <div className="w-6 h-6 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 text-[11px] font-semibold flex-shrink-0">
+                {session.name.charAt(0).toUpperCase()}
+              </div>
+              <span className="flex-1 text-[12px] text-ink-600 truncate">{session.name}</span>
+              <button onClick={handleLogout} className="p-1 rounded text-ink-300 hover:text-ink-700 transition-colors" title="Abmelden">
+                <Icon name="log-out" cls="w-3.5 h-3.5"/>
+              </button>
+            </div>
+          )}
+          {!sidebarOpen && (
+            <button onClick={handleLogout} className="nav-item w-full justify-center" title="Abmelden">
+              <Icon name="log-out" cls="w-3.5 h-3.5"/>
+            </button>
+          )}
         </div>
       </aside>
 
       {/* Main */}
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-[1180px] mx-auto px-10 py-10">
+          {view === 'start' && (
+            <StartseiteView session={session} data={data} onEditWelcome={handleWelcomeChange} isAdmin={isAdmin}/>
+          )}
           {view === 'anforderungen' && (
             <AnforderungenView
-              anforderungen={anf}
+              anforderungen={anf} config={cfg} canEdit={canEdit} canDelete={canDelete}
               onCreate={() => setAnforderungModal('new')}
               onView={a => setAnforderungDetail(a)}
               onEdit={a => setAnforderungModal(a)}
@@ -2097,11 +2472,19 @@ const App = () => {
           )}
           {view === 'richtlinien' && (
             <RichtlinienView
-              richtlinien={rl}
+              richtlinien={rl} config={cfg} canEdit={canEdit} canDelete={canDelete}
               onCreate={() => setRichtlinieModal('new')}
               onView={r => setRichtlinieDetail(r)}
               onEdit={r => setRichtlinieModal(r)}
               onDelete={deleteRichtlinie}
+            />
+          )}
+          {view === 'benutzer' && isAdmin && (
+            <BenutzerView
+              users={users} session={session}
+              onCreate={() => setBenutzerModal('new')}
+              onEdit={u => setBenutzerModal(u)}
+              onDelete={deleteBenutzer}
             />
           )}
         </div>
@@ -2110,18 +2493,17 @@ const App = () => {
       {/* Anforderung Form */}
       {anforderungModal && (
         <AnforderungForm
-          initial={anforderungModal === 'new' ? { anforderung_id: '', kategorie: Object.keys(KATEGORIEN)[0], unterkategorie: '', beschreibung: '', schutzobjektarten: [], schutzbedarf: 'mittel', dienstleistungsmodelle: [], kritische_funktionen: false } : anforderungModal}
+          initial={anforderungModal === 'new' ? { anforderung_id: '', kategorie: Object.keys(cfg.anfKategorien)[0] || '', unterkategorie: '', beschreibung: '' } : anforderungModal}
           onSave={anforderungModal === 'new' ? createAnforderung : updateAnforderung}
           onClose={() => setAnforderungModal(null)}
-          anforderungen={anf}
+          anforderungen={anf} config={cfg}
         />
       )}
 
       {/* Anforderung Detail */}
       {anforderungDetail && (
         <AnforderungDetailPanel
-          anforderung={anforderungDetail}
-          richtlinien={rl}
+          anforderung={anforderungDetail} richtlinien={rl} canEdit={canEdit}
           onEdit={() => { setAnforderungModal(anforderungDetail); setAnforderungDetail(null); }}
           onClose={() => setAnforderungDetail(null)}
         />
@@ -2130,31 +2512,41 @@ const App = () => {
       {/* Richtlinie Form */}
       {richtlinieModal && (
         <RichtlinieForm
-          initial={richtlinieModal === 'new' ? { richtlinie_id: '', titel: '', kategorie: RICHTLINIEN_KATEGORIEN[0], art: RICHTLINIEN_ART[1], vertraulichkeit: 'K2', anwender: [], verantwortung: '', pdf: null, anforderungen_ids: [] } : richtlinieModal}
+          initial={richtlinieModal === 'new' ? { richtlinie_id: '', titel: '', kategorie: Object.keys(cfg.rlKategorien)[0] || '', unterkategorie: '', art: cfg.rlArt[1] || cfg.rlArt[0] || '', vertraulichkeit: 'K2', anwender: [], rollen: [], pdf: null, anforderungen_ids: [] } : richtlinieModal}
           onSave={richtlinieModal === 'new' ? createRichtlinie : updateRichtlinie}
           onClose={() => setRichtlinieModal(null)}
-          anforderungen={anf}
+          anforderungen={anf} config={cfg}
         />
       )}
 
       {/* Richtlinie Detail */}
       {richtlinieDetail && (
         <RichtlinieDetailPanel
-          richtlinie={richtlinieDetail}
-          anforderungen={anf}
+          richtlinie={richtlinieDetail} anforderungen={anf} canEdit={canEdit}
           onEdit={() => { setRichtlinieModal(richtlinieDetail); setRichtlinieDetail(null); }}
           onClose={() => setRichtlinieDetail(null)}
+        />
+      )}
+
+      {/* Benutzer Form */}
+      {benutzerModal && (
+        <BenutzerForm
+          initial={benutzerModal === 'new' ? null : benutzerModal}
+          onSave={benutzerModal === 'new' ? createBenutzer : updateBenutzer}
+          onClose={() => setBenutzerModal(null)}
+          currentUserId={session.id}
         />
       )}
 
       {showSettings && (
         <EinstellungenModal
           data={data}
-          onImport={newData => { setData({ anforderungen: newData.anforderungen || [], richtlinien: newData.richtlinien || [] }); saveData(newData); setShowSettings(false); }}
+          onImport={newData => { setData({ anforderungen: newData.anforderungen || [], richtlinien: newData.richtlinien || [], users: newData.users || [], config: newData.config || DEFAULT_CONFIG }); saveData(newData); setShowSettings(false); }}
           onClose={() => setShowSettings(false)}
           syncStatus={syncStatus}
           onConnectGist={handleConnectGist}
           onDisconnectGist={handleDisconnectGist}
+          onConfigChange={handleConfigChange}
         />
       )}
     </div>
