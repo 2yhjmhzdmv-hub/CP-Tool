@@ -1,0 +1,1970 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anforderungen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Geist', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['Geist Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        serif: ['Instrument Serif', 'ui-serif', 'Georgia', 'serif'],
+      },
+      colors: {
+        ink: {
+          50:  '#f1f4f7',
+          100: '#e1e7ec',
+          200: '#ccd5dc',
+          300: '#9aaab6',
+          400: '#6a7c89',
+          500: '#445463',
+          600: '#2a3a4a',
+          700: '#162a3e',
+          800: '#0d1f31',
+          900: '#0a1828',
+        },
+        brand: {
+          50:  '#eaf0f5',
+          100: '#cdd9e3',
+          200: '#9bb3c5',
+          400: '#3e5b78',
+          500: '#1c3955',
+          600: '#0A2845',
+          700: '#061b30',
+          800: '#04111f',
+          900: '#020a13',
+        },
+        petrol: {
+          50:  '#e6f5f6',
+          100: '#b8e0e3',
+          200: '#85cad0',
+          400: '#1aaab3',
+          500: '#0096A0',
+          600: '#007a83',
+          700: '#005d63',
+        },
+        canvas: '#f4f7f9',
+        surface: '#ffffff',
+        line: '#e1e7ec',
+        sage: { 50: '#eef3f0', 600: '#4a6e5e', 700: '#3a5a4c' },
+        amber2:{ 50: '#fbf4e6', 600: '#8a6420', 700: '#6f4f17' },
+        rose:  { 50: '#fbf0ee', 600: '#a13d36', 700: '#85302a' },
+      },
+      boxShadow: {
+        'soft':  '0 1px 2px rgba(15,15,17,0.04), 0 1px 0 rgba(15,15,17,0.02)',
+        'pop':   '0 12px 32px -8px rgba(15,15,17,0.16), 0 4px 12px -4px rgba(15,15,17,0.08)',
+      },
+    }
+  }
+}
+</script>
+<style>
+  :root{
+    --bg: #f4f7f9;
+    --surface: #ffffff;
+    --line: #e1e7ec;
+    --line-strong: #ccd5dc;
+    --ink-900: #0a1828;
+    --ink-700: #162a3e;
+    --ink-500: #445463;
+    --ink-400: #6a7c89;
+    --ink-300: #9aaab6;
+    --brand: #0A2845;
+    --brand-700: #061b30;
+    --brand-500: #1c3955;
+    --petrol: #0096A0;
+    --petrol-600: #007a83;
+    --petrol-50: #e6f5f6;
+  }
+  *,*::before,*::after { box-sizing: border-box; }
+  html, body { background: var(--bg); }
+  body {
+    font-family: 'Geist', ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: 'ss01', 'cv11';
+    color: var(--ink-900);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  textarea { resize: vertical; }
+  .font-mono { font-family: 'Geist Mono', ui-monospace, monospace; }
+  .font-serif { font-family: 'Instrument Serif', ui-serif, Georgia, serif; }
+
+  /* Subtle scrollbar */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #c7d2da; border-radius: 999px; border: 2px solid var(--bg); }
+  ::-webkit-scrollbar-thumb:hover { background: #9aaab6; }
+
+  .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  /* Inputs */
+  .field {
+    width: 100%;
+    background: #ffffff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    color: var(--ink-900);
+    transition: border-color .15s, box-shadow .15s, background .15s;
+    font-family: inherit;
+  }
+  .field:hover { border-color: var(--line-strong); }
+  .field:focus {
+    outline: none;
+    border-color: var(--petrol);
+    box-shadow: 0 0 0 3px rgba(0,150,160,0.15);
+    background: #ffffff;
+  }
+  .field::placeholder { color: var(--ink-300); }
+  select.field {
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='2' stroke='%239aaab6'%3e%3cpath stroke-linecap='round' stroke-linejoin='round' d='m6 9 6 6 6-6'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 0.625rem center;
+    background-size: 16px;
+    padding-right: 2rem;
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    font-size: 0.8125rem; font-weight: 500;
+    padding: 0 0.875rem; height: 36px;
+    border-radius: 8px;
+    transition: all .14s ease;
+    white-space: nowrap;
+    font-family: inherit;
+    letter-spacing: -0.005em;
+  }
+  .btn-primary {
+    background: var(--brand); color: #ffffff;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.10), 0 1px 2px rgba(10,40,69,0.18);
+  }
+  .btn-primary:hover { background: var(--brand-500); }
+  .btn-primary:active { background: var(--brand-700); transform: translateY(0.5px); }
+  .btn-accent {
+    background: var(--petrol); color: #ffffff;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 1px 2px rgba(0,150,160,0.20);
+  }
+  .btn-accent:hover { background: var(--petrol-600); }
+  .btn-ghost {
+    background: transparent; color: var(--ink-700);
+    border: 1px solid transparent;
+  }
+  .btn-ghost:hover { background: #eef2f5; color: var(--ink-900); }
+  .btn-outline {
+    background: #ffffff; color: var(--ink-700);
+    border: 1px solid var(--line);
+  }
+  .btn-outline:hover { background: #f1f5f8; border-color: var(--line-strong); }
+  .btn-sm { height: 30px; padding: 0 0.625rem; font-size: 0.75rem; border-radius: 7px; }
+
+  /* Card */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+  }
+
+  /* Search input wrapper */
+  .search-wrap { position: relative; }
+  .search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--ink-300); pointer-events: none; }
+  .search-wrap .field { padding-left: 32px; }
+
+  /* Filter toolbar */
+  .toolbar {
+    display: flex; align-items: stretch;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 1px 0 rgba(10,24,40,0.02), 0 6px 18px -8px rgba(10,24,40,0.06);
+    transition: box-shadow .18s, border-color .18s;
+  }
+  .toolbar:focus-within { box-shadow: 0 1px 0 rgba(10,24,40,0.02), 0 8px 22px -8px rgba(10,24,40,0.10); }
+  .toolbar-seg {
+    position: relative;
+    display: flex; align-items: center;
+    min-height: 52px;
+    padding: 0 16px;
+    border-right: 1px solid var(--line);
+    transition: background .15s;
+  }
+  .toolbar-seg:hover { background: #fbfcfd; }
+  .toolbar-seg.is-active { background: #f5fbfb; }
+  .toolbar-seg .seg-ico {
+    width: 16px; height: 16px;
+    flex-shrink: 0;
+    color: var(--ink-300);
+    margin-right: 10px;
+    transition: color .15s;
+  }
+  .toolbar-seg.is-active .seg-ico { color: var(--petrol-600); }
+  .toolbar-seg .seg-label {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--ink-300);
+    margin-right: 10px;
+    user-select: none;
+    transition: color .15s;
+  }
+  .toolbar-seg.is-active .seg-label { color: var(--petrol-600); }
+  .toolbar-seg input,
+  .toolbar-seg select {
+    border: 0; background: transparent; outline: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--ink-900);
+    font-family: inherit;
+    padding: 0;
+    appearance: none;
+    background-image: none !important;
+    box-shadow: none !important;
+    cursor: pointer;
+    letter-spacing: -0.005em;
+  }
+  .toolbar-seg input { cursor: text; font-weight: 400; }
+  .toolbar-seg input::placeholder { color: var(--ink-300); font-weight: 400; }
+  .toolbar-seg.seg-search { flex: 0 1 320px; min-width: 0; }
+  .toolbar-seg.seg-search input { width: 100%; }
+  .toolbar-seg.has-select { padding-right: 38px; cursor: pointer; }
+  .toolbar-seg.has-select select { padding-right: 4px; }
+  .toolbar-seg.has-select::after {
+    content: '';
+    position: absolute; right: 16px; top: 50%;
+    width: 7px; height: 7px;
+    border-right: 1.5px solid var(--ink-300);
+    border-bottom: 1.5px solid var(--ink-300);
+    transform: translateY(-70%) rotate(45deg);
+    pointer-events: none;
+    transition: border-color .15s;
+  }
+  .toolbar-seg.has-select.is-active::after { border-color: var(--petrol-600); }
+  .toolbar-reset {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 0 14px;
+    border-right: 1px solid var(--line);
+    color: var(--ink-500);
+    font-size: 0.75rem; font-weight: 500;
+    background: transparent;
+    transition: background .14s, color .14s;
+    cursor: pointer;
+  }
+  .toolbar-reset:hover { background: #f1f5f8; color: var(--ink-900); }
+  .toolbar-count {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 18px;
+    background: #fafcfd;
+    font-size: 0.75rem;
+    color: var(--ink-400);
+    font-family: 'Geist Mono', ui-monospace, 'JetBrains Mono', monospace;
+    letter-spacing: 0.01em;
+  }
+  .toolbar-count b { color: var(--ink-900); font-weight: 600; }
+  .toolbar-count .count-dot {
+    width: 5px; height: 5px; border-radius: 999px;
+    background: var(--petrol);
+    box-shadow: 0 0 0 3px rgba(0,150,160,0.18);
+  }
+
+  /* Tag (filter chips) */
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 26px; padding: 0 10px;
+    font-size: 0.75rem; font-weight: 500;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: #ffffff;
+    color: var(--ink-700);
+    transition: all .14s;
+  }
+  .chip:hover { border-color: var(--line-strong); }
+  .chip-dot { width: 6px; height: 6px; border-radius: 999px; }
+
+  /* Sidebar link */
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 10px; border-radius: 8px;
+    font-size: 0.8125rem; font-weight: 500;
+    color: var(--ink-500);
+    cursor: pointer; transition: all .14s;
+    letter-spacing: -0.005em;
+  }
+  .nav-item:hover { background: #e7edf2; color: var(--ink-900); }
+  .nav-item.active { background: var(--brand); color: #ffffff; }
+  .nav-item.active:hover { background: var(--brand-500); }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed; inset: 0; z-index: 50;
+    background: rgba(10,24,40,0.42);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 1rem;
+    animation: fadeIn .15s ease;
+  }
+  .modal-panel {
+    background: #ffffff;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: 0 32px 64px -16px rgba(10,24,40,0.22), 0 8px 16px -4px rgba(10,24,40,0.10);
+    width: 100%;
+    max-height: 90vh;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    animation: scaleIn .18s cubic-bezier(.2,.7,.4,1);
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes scaleIn { from { opacity: 0; transform: translateY(4px) scale(.98); } to { opacity: 1; transform: none; } }
+
+  /* Schutzbedarf badge variants — refined low-saturation, BMS-tuned */
+  .sb-niedrig { background: #e6f1ee; color: #2e5a4d; }
+  .sb-niedrig .sb-dot { background: #4a8a7a; }
+  .sb-mittel  { background: #f7eed8; color: #6e4f10; }
+  .sb-mittel  .sb-dot { background: #c08020; }
+  .sb-hoch    { background: #f7e3df; color: #7a261f; }
+  .sb-hoch    .sb-dot { background: #b53a31; }
+
+  /* Table */
+  .data-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.875rem; }
+  .data-table thead th {
+    text-align: left;
+    padding: 10px 18px;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: var(--ink-400);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--line);
+    background: #f7fafb;
+  }
+  .data-table tbody td {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+  }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+  .data-table tbody tr { transition: background .12s; }
+  .data-table tbody tr:hover { background: #f7fafb; }
+  .data-table tbody tr.row-clickable { cursor: pointer; }
+
+  /* ID pill */
+  .id-pill {
+    display: inline-flex; align-items: center;
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    padding: 3px 8px;
+    background: var(--petrol-50);
+    color: var(--petrol-600);
+    border: 1px solid #cfe6e8;
+    border-radius: 6px;
+    letter-spacing: -0.01em;
+  }
+
+  /* Tag (dienstleistung) */
+  .tag {
+    display: inline-flex; align-items: center;
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    padding: 2px 7px;
+    background: #ffffff;
+    color: var(--ink-700);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    letter-spacing: -0.005em;
+  }
+
+  /* Soft tag (schutzobjektart) */
+  .tag-soft {
+    display: inline-flex; align-items: center;
+    font-size: 0.75rem;
+    padding: 3px 9px;
+    background: #eaf0f5;
+    color: var(--ink-700);
+    border-radius: 6px;
+  }
+
+  /* Critical-function pill */
+  .pill-crit {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    padding: 3px 9px;
+    background: var(--petrol-50);
+    color: var(--petrol-600);
+    border: 1px solid #cfe6e8;
+    border-radius: 999px;
+  }
+
+  /* Section label */
+  .lbl {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: var(--ink-400);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 6px;
+    display: block;
+  }
+
+  /* Selectable option (in form) */
+  .opt {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    background: #ffffff;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all .12s;
+    font-size: 0.8125rem;
+    color: var(--ink-700);
+    user-select: none;
+  }
+  .opt:hover { border-color: var(--line-strong); background: #f7fafb; }
+  .opt.is-checked {
+    border-color: var(--brand);
+    background: var(--brand);
+    color: #ffffff;
+  }
+  .opt .opt-check {
+    width: 14px; height: 14px;
+    border: 1.5px solid var(--ink-300);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: all .12s;
+  }
+  .opt.is-checked .opt-check { background: #ffffff; border-color: #ffffff; }
+  .opt.is-checked .opt-check svg path { stroke: var(--brand) !important; }
+
+  /* Radio segment (schutzbedarf in form) */
+  .seg {
+    display: inline-flex;
+    padding: 3px;
+    background: #eef2f5;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    gap: 2px;
+  }
+  .seg-btn {
+    padding: 6px 12px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    border-radius: 7px;
+    color: var(--ink-500);
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: all .14s;
+  }
+  .seg-btn:hover { color: var(--ink-900); }
+  .seg-btn.is-active { background: #ffffff; color: var(--ink-900); box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+
+  @media print { .no-print { display: none !important; } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+const uuid = () => crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+const today = () => new Date().toISOString().split('T')[0];
+const nowISO = () => new Date().toISOString();
+const fmt = d => d ? new Date(d).toLocaleDateString('de-DE') : '—';
+const fmtDateTime = d => {
+  if (!d) return '—';
+  const dt = new Date(d);
+  return dt.toLocaleDateString('de-DE') + ', ' + dt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr';
+};
+
+const KATEGORIEN = {
+  'Identitäts- und Zugriffsverwaltung (IAM)': [
+    'Zugangsrechte',
+    'Zugangssteuerung',
+    'Privilegierte Zugangsrechte',
+    'Sichere Authentifizierung',
+    'Information zur Authentifizierung',
+    'Identitätsmanagement',
+    'Gebrauch von Hilfsprogrammen mit privilegierten Rechten',
+  ],
+  'Incident- und Problembewältigung': [
+    'Incident Management',
+    'Problem Management',
+    'Reaktion auf Informationssicherheitsvorfälle',
+    'Planung und Vorbereitung der Handhabung von Informationssicherheitsvorfällen',
+    'Erkenntnisse aus Informationssicherheitsvorfällen',
+    'Meldung von Informationssicherheitsereignissen',
+    'Beurteilung und Entscheidung über Informationssicherheitsereignisse',
+    'Informationssicherheit bei Störungen',
+  ],
+  'Physische Sicherheit und Zutrittsschutz': [
+    'Physische Sicherheitsperimeter',
+    'Physische Sicherheitsüberwachung',
+    'Physischer Zutritt',
+    'Schutz vor physischen und umweltbedingten Bedrohungen',
+    'Sichern von Büros, Räumen und Einrichtungen',
+    'Platzierung und Schutz von Geräten und Betriebsmitteln',
+    'Aufgeräumte Arbeitsumgebung und Bildschirmsperren',
+  ],
+  'Netzwerk- und Kommunikationssicherheit': [
+    'Netzwerksicherheit',
+    'Sicherheit von Netzwerkdiensten',
+    'Trennung von Netzwerken',
+    'Sicherheit der Verkabelung',
+    'Webfilterung',
+    'Telearbeit',
+    'Uhrensynchronisation',
+  ],
+  'Verschlüsselung und Datenschutz': [
+    'Verwendung von Kryptografie',
+    'Datenschutz und Schutz personenbezogener Daten (pbD)',
+    'Datenmaskierung',
+    'Vertraulichkeits- oder Geheimhaltungsvereinbarungen',
+  ],
+  'Informationsklassifikation und -verwaltung': [
+    'Klassifizierung von Information',
+    'Kennzeichnung von Informationen',
+    'Inventar der Informationen und anderen damit verbundenen Werten',
+    'Sicherung von Information',
+    'Zulässiger Gebrauch von Informationen und anderen damit verbundenen Werten',
+    'Informationszugangsbeschränkung',
+  ],
+  'Sichere Datenlöschung und Entsorgung': [
+    'Löschungen von Informationen',
+    'Rückgabe von Werten',
+    'Sichere Entsorgung oder Wiederverwendung von Geräten und Betriebsmitteln',
+    'Verhinderung von Datenlecks',
+  ],
+  'Sichere Softwareentwicklung': [
+    'Ausgegliederte Entwicklung',
+    'Lebenszyklus einer sicheren Entwicklung',
+    'Sicheres Coding',
+    'Sichere Systemarchitektur und technische Grundsätze',
+    'Sicherheitsprüfung in Entwicklung und Abnahme',
+    'Trennung von Entwicklungs-, Prüf- und Produktionsumgebung',
+    'Zugriff auf den Quellcode',
+    'Anforderungen an die Anwendungssicherheit',
+  ],
+  'Patch-, Konfigurations- und Schwachstellenmanagement': [
+    'Patch-Management',
+    'Konfigurationsmanagement',
+    'Handhabung von technischen Schwachstellen',
+    'Installation von Software auf Systemen im Betrieb',
+  ],
+  'Überwachung, Logging und Malware-Schutz': [
+    'Schutz gegen Schadsoftware',
+    'Schutz der Informationssysteme während der Überwachungsprüfung',
+    'Überwachung von Aktivitäten',
+    'Überwachung, Überprüfung und Änderungsmanagement von Lieferantendiensteistungen',
+    'Sicherheitsüberprüfung',
+  ],
+  'Richtlinien, Normen und Compliance': [
+    'Informationssicherheitsrichtlinien',
+    'Einhaltung von Richtlinien, Vorschriften und Normen für die Informationssicherheit',
+    'Rechtliche, gesetzliche, regulatorische und vertragliche Anforderungen',
+    'Geistige Eigentumsrechte',
+    'Kontakt zu Behörden',
+  ],
+  'Sicherheitskultur und Schulung': [
+    'Informationssicherheitsbewusstsein, -ausbildung und -schulung',
+    'Lernprozesse und Weiterentwicklung',
+    'Bedrohungsintelligenz',
+    'Kommunikation',
+  ],
+  'Personelle Sicherheit und Verantwortlichkeiten': [
+    'Verantwortlichkeiten der Leitung',
+    'Informationssicherheitsrollen und Verantwortlichkeiten',
+    'Verantwortlichkeiten bei Beendigung oder Änderung der Beschäftigung',
+    'Beschäftigungs- und Vertragsbedingungen',
+    'Arbeiten in Sicherheitsbereichen',
+    'Aufgabentrennung',
+    'Maßregelungsprozess',
+  ],
+  'Drittparteien-Risikomanagement': [
+    'Behandlung von Informationssicherheit in Lieferantenvereinbarungen',
+    'Informationssicherheit in Lieferantenbeziehungen',
+    'Umgang mit der Informationssicherheit in der IKT-Lieferkette',
+    'Informationssicherheit für die Nutzung von Cloud-Diensten',
+  ],
+  'Business Continuity und Notfallvorbereitung': [
+    'IKT-Bereitschaft für Business Continuity',
+    'Testen der digitalen operationalen Resilienz',
+    'Redundanz von informationsverarbeitenden Einrichtungen',
+    'Dokumentierte Betriebsabläufe',
+  ],
+  'Strategisches Risikomanagement': [
+    'IKT-Risikomanagement',
+    'IT-Strategie',
+    'DOR-Strategie',
+    'Unabhängige Überprüfung der Informationssicherheit',
+  ],
+  'Logging, Audit und Änderungskontrolle': [
+    'Protokollierung',
+    'Prüfinformationen',
+    'Sammeln von Beweismaterial',
+    'Schutz von Aufzeichnungen',
+    'Interne Revision',
+    'Änderungssteuerung',
+  ],
+  'Asset- und Geräteverwaltung': [
+    'Beschaffung von IKT-Systemen',
+    'Endpunktgeräte des Benutzers',
+    'Instandhaltung von Geräten und Betriebsmitteln',
+    'Speichermedien',
+    'Sicherheit von Werten außerhalb der Räumlichkeiten',
+  ],
+  'Infrastruktur und Kapazitätsverwaltung': [
+    'Versorgungseinrichtungen',
+    'Kapazitätssteuerung',
+    'Redundanz von informationsverarbeitenden Einrichtungen',
+  ],
+  'Spezialisierte Sicherheitsthemen': [
+    'Individuelle Datenverarbeitung',
+    'Informationssicherheit im Projektmanagement',
+    'Kontakt mit speziellen Interessensgruppen',
+  ],
+};
+const SCHUTZOBJEKTARTEN = [
+  'Unternehmen / Übergreifend',
+  'Informationswerte',
+  'Geschäftsprozesse & Funktionen',
+  'Personen & Rollen',
+  'Anwendungen & Software',
+  'Datenbanken & Datenspeicher',
+  'Infrastruktur / IKT-Systeme',
+  'Physische Assets',
+  'Dienstleister & Externe Parteien',
+];
+const SCHUTZBEDARF_CONFIG = {
+  niedrig: { label: 'Niedrig', cls: 'sb-niedrig' },
+  mittel:  { label: 'Mittel',  cls: 'sb-mittel'  },
+  hoch:    { label: 'Hoch',    cls: 'sb-hoch'    },
+};
+const DIENSTLEISTUNGSMODELLE = ['SaaS', 'PaaS', 'IaaS', 'IKT-Beratung'];
+
+// ── Richtlinien Constants ──────────────────────────────────────────────────
+const RICHTLINIEN_KATEGORIEN = ['Informationssicherheit', 'BCM', 'Risikomanagement'];
+const RICHTLINIEN_ART = ['Strategie', 'Richtlinie', 'Leitlinie', 'Verfahrensanweisung'];
+const VERTRAULICHKEIT = [
+  { id: 'K1', label: 'K1 – Öffentlich',          bg: '#e6f4ec', fg: '#1e6b3a', border: '#b4dcc3' },
+  { id: 'K2', label: 'K2 – Intern',              bg: '#e6f0fb', fg: '#1a4d8a', border: '#aecbef' },
+  { id: 'K3', label: 'K3 – Vertraulich',         bg: '#fbf4e6', fg: '#7a5010', border: '#f0d99a' },
+  { id: 'K4', label: 'K4 – Streng Vertraulich',  bg: '#fbeded', fg: '#7a1a1a', border: '#f0b4b4' },
+];
+const ANWENDER_OPTIONEN = ['Mitarbeitende', 'Externe Mitarbeitende'];
+
+// ── Storage ────────────────────────────────────────────────────────────────
+const STORAGE_KEY = 'richtlinien-tool-v1';
+const loadData = () => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (!parsed.richtlinien) parsed.richtlinien = [];
+      return parsed;
+    }
+  } catch {}
+  return null;
+};
+const saveData = data => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+// ── Seed Data ──────────────────────────────────────────────────────────────
+const SEED = { anforderungen: [  {
+    id: 'anf-1', anforderung_id: 'ANF-001',
+    kategorie: 'Identitäts- und Zugriffsverwaltung (IAM)', unterkategorie: 'Zugangssteuerung',
+    beschreibung: 'Zugriffe auf kritische Systeme müssen nach dem Least-Privilege-Prinzip vergeben und regelmäßig überprüft werden.',
+    schutzobjektarten: ['Anwendungen & Software', 'Informationswerte', 'Geschäftsprozesse & Funktionen'],
+    schutzbedarf: 'hoch', dienstleistungsmodelle: ['SaaS', 'PaaS', 'IaaS'], kritische_funktionen: true,
+    erstellt_am: '2024-01-10', aktualisiert_am: '2024-01-10',
+  },
+  {
+    id: 'anf-2', anforderung_id: 'ANF-002',
+    kategorie: 'Verschlüsselung und Datenschutz', unterkategorie: 'Datenschutz und Schutz personenbezogener Daten (pbD)',
+    beschreibung: 'Personenbezogene Daten dürfen nur auf Basis einer dokumentierten Rechtsgrundlage verarbeitet werden.',
+    schutzobjektarten: ['Informationswerte', 'Geschäftsprozesse & Funktionen'],
+    schutzbedarf: 'hoch', dienstleistungsmodelle: ['SaaS', 'IKT-Beratung'], kritische_funktionen: true,
+    erstellt_am: '2024-01-10', aktualisiert_am: '2024-01-10',
+  },
+  {
+    id: 'anf-3', anforderung_id: 'ANF-003',
+    kategorie: 'Patch-, Konfigurations- und Schwachstellenmanagement', unterkategorie: 'Patch-Management',
+    beschreibung: 'Sicherheitsupdates für Betriebssysteme und Anwendungen müssen innerhalb von 30 Tagen nach Verfügbarkeit eingespielt werden.',
+    schutzobjektarten: ['Infrastruktur / IKT-Systeme', 'Anwendungen & Software'],
+    schutzbedarf: 'mittel', dienstleistungsmodelle: ['SaaS', 'PaaS', 'IaaS', 'IKT-Beratung'], kritische_funktionen: false,
+    erstellt_am: '2024-02-01', aktualisiert_am: '2024-02-01',
+  },
+  {
+    id: 'anf-4', anforderung_id: 'ANF-004',
+    kategorie: 'Physische Sicherheit und Zutrittsschutz', unterkategorie: 'Physischer Zutritt',
+    beschreibung: 'Serverräume und Rechenzentren müssen gegen unbefugten Zutritt durch Zutrittskontrollsysteme gesichert sein.',
+    schutzobjektarten: ['Infrastruktur / IKT-Systeme', 'Physische Assets'],
+    schutzbedarf: 'mittel', dienstleistungsmodelle: ['IaaS'], kritische_funktionen: true,
+    erstellt_am: '2024-02-15', aktualisiert_am: '2024-02-15',
+  },
+  {
+    id: 'anf-5', anforderung_id: 'ANF-005',
+    kategorie: 'Sicherheitskultur und Schulung', unterkategorie: 'Informationssicherheitsbewusstsein, -ausbildung und -schulung',
+    beschreibung: 'Neue Mitarbeiter müssen vor Aufnahme ihrer Tätigkeit eine Sicherheitsschulung absolvieren.',
+    schutzobjektarten: ['Geschäftsprozesse & Funktionen'],
+    schutzbedarf: 'niedrig', dienstleistungsmodelle: ['SaaS', 'PaaS', 'IaaS', 'IKT-Beratung'], kritische_funktionen: false,
+    erstellt_am: '2024-03-01', aktualisiert_am: '2024-03-01',
+  },
+], richtlinien: []};
+
+// ── Icons (inline SVG, 1.5 stroke) ─────────────────────────────────────────
+const Icon = ({ name, cls = 'w-4 h-4' }) => {
+  const icons = {
+    plus:     <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m7-7H5"/>,
+    search:   <><circle cx="11" cy="11" r="7"/><path strokeLinecap="round" d="m20 20-3.5-3.5"/></>,
+    x:        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12"/>,
+    check:    <path strokeLinecap="round" strokeLinejoin="round" d="m5 12 5 5L20 7"/>,
+    edit:     <path strokeLinecap="round" strokeLinejoin="round" d="m16.5 4 3.5 3.5L8 19.5l-4 1 1-4L16.5 4Z"/>,
+    trash:    <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m1 0v12a2 2 0 0 1-2 2h-6a2 2 0 0 1-2-2V7h10Z"/>,
+    settings: <><circle cx="12" cy="12" r="3"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></>,
+    shield:   <path strokeLinecap="round" strokeLinejoin="round" d="M12 3 4 6v6c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V6l-8-3Z"/>,
+    upload:   <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m-5-7 5-5 5 5M5 21h14"/>,
+    download: <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m-5-5 5 5 5-5M5 21h14"/>,
+    sidebar:  <path strokeLinecap="round" strokeLinejoin="round" d="M4 5h16M4 12h16M4 19h16"/>,
+    filter:   <path strokeLinecap="round" strokeLinejoin="round" d="M4 5h16l-6 8v6l-4-2v-4L4 5Z"/>,
+    chev:     <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6"/>,
+    arrow:    <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14m-7-7 7 7-7 7"/>,
+    spark:    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1M5.6 18.4l2.1-2.1m8.6-8.6 2.1-2.1"/>,
+    list:     <path strokeLinecap="round" strokeLinejoin="round" d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>,
+    'shield-alert': <><path strokeLinecap="round" strokeLinejoin="round" d="M12 3 4 6v6c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V6l-8-3Z"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 8.5v4"/><circle cx="12" cy="15.2" r="0.6" fill="currentColor" stroke="none"/></>,
+    'shield-half': <><path strokeLinecap="round" strokeLinejoin="round" d="M12 3 4 6v6c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V6l-8-3Z"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v18"/></>,
+    zap:      <path strokeLinecap="round" strokeLinejoin="round" d="M13 3 4 14h7l-1 7 9-11h-7l1-7Z"/>,
+    layers:   <path strokeLinecap="round" strokeLinejoin="round" d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5m-18 4 9 5 9-5"/>,
+    book:     <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5Zm4 0v14m0-7h8"/>,
+    paperclip:<path strokeLinecap="round" strokeLinejoin="round" d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>,
+    link:     <path strokeLinecap="round" strokeLinejoin="round" d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>,
+    unlink:   <><path strokeLinecap="round" strokeLinejoin="round" d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/><path strokeLinecap="round" d="M2 2l20 20"/></>,
+    'file-text': <><path strokeLinecap="round" strokeLinejoin="round" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z"/><path strokeLinecap="round" strokeLinejoin="round" d="M14 2v6h6M16 13H8m8 4H8m2-8H8"/></>,
+    lock:     <path strokeLinecap="round" strokeLinejoin="round" d="M17 11H7a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2ZM12 7a3 3 0 0 0-3 3v1h6v-1a3 3 0 0 0-3-3Z"/>,
+    users:    <><path strokeLinecap="round" strokeLinejoin="round" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path strokeLinecap="round" strokeLinejoin="round" d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></>,
+  };
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.6} stroke="currentColor" className={cls}>
+      {icons[name]}
+    </svg>
+  );
+};
+
+// ── Shared UI ──────────────────────────────────────────────────────────────
+const Field = ({ label, hint, required, children }) => (
+  <div>
+    <label className="flex items-baseline gap-1.5 mb-1.5">
+      <span className="text-[13px] font-medium text-ink-900">{label}</span>
+      {required && <span className="text-[10px] text-ink-300">erforderlich</span>}
+      {hint && <span className="text-[11px] text-ink-400 font-normal">{hint}</span>}
+    </label>
+    {children}
+  </div>
+);
+
+const Modal = ({ title, subtitle, onClose, size = 'md', children, footer }) => {
+  const widthMap = { sm: 'max-w-md', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-3xl' };
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className={`modal-panel ${widthMap[size]}`} onClick={e => e.stopPropagation()}>
+        <div className="flex items-start gap-4 px-6 py-5 border-b border-line">
+          <div className="flex-1 min-w-0">
+            {title && <h3 className="text-[15px] font-semibold text-ink-900 tracking-tight">{title}</h3>}
+            {subtitle && <p className="text-xs text-ink-400 mt-0.5">{subtitle}</p>}
+          </div>
+          <button onClick={onClose} className="-mr-2 -mt-1 p-2 rounded-lg text-ink-400 hover:text-ink-900 hover:bg-ink-50 transition-colors">
+            <Icon name="x" cls="w-4 h-4"/>
+          </button>
+        </div>
+        <div className="overflow-y-auto flex-1 px-6 py-5">
+          {children}
+        </div>
+        {footer && (
+          <div className="px-6 py-4 border-t border-line bg-[#f7fafb] flex items-center justify-end gap-2">
+            {footer}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── Einstellungen Modal ────────────────────────────────────────────────────
+const EinstellungenModal = ({ data, onImport, onClose }) => {
+  const fileRef = useRef();
+
+  const doExport = () => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `anforderungen-backup-${today()}.json`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const doImport = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const parsed = JSON.parse(ev.target.result);
+        if (!parsed.anforderungen) return alert('Ungültiges Dateiformat.');
+        if (confirm(`${parsed.anforderungen.length} Anforderungen importieren? Bestehende Daten werden überschrieben.`)) {
+          onImport(parsed);
+        }
+      } catch { alert('Fehler beim Lesen der Datei.'); }
+    };
+    reader.readAsText(file);
+  };
+
+  return (
+    <Modal title="Einstellungen" subtitle="Datensicherung und Speicherinformationen" onClose={onClose} size="md">
+      <div className="space-y-6">
+        <div>
+          <span className="lbl">Datensicherung</span>
+          <div className="card divide-y divide-line">
+            <div className="flex items-center gap-4 p-4">
+              <div className="flex-1">
+                <p className="text-[13px] font-medium text-ink-900">Daten exportieren</p>
+                <p className="text-xs text-ink-400 mt-0.5">Alle Anforderungen und Richtlinien als JSON-Datei speichern.</p>
+              </div>
+              <button onClick={doExport} className="btn btn-outline btn-sm">
+                <Icon name="download" cls="w-3.5 h-3.5"/> Export
+              </button>
+            </div>
+            <div className="flex items-center gap-4 p-4">
+              <div className="flex-1">
+                <p className="text-[13px] font-medium text-ink-900">Daten importieren</p>
+                <p className="text-xs text-ink-400 mt-0.5">Backup wiederherstellen — überschreibt alle aktuellen Daten.</p>
+              </div>
+              <button onClick={() => fileRef.current.click()} className="btn btn-outline btn-sm">
+                <Icon name="upload" cls="w-3.5 h-3.5"/> Import
+              </button>
+              <input ref={fileRef} type="file" accept=".json" className="hidden" onChange={doImport}/>
+            </div>
+          </div>
+        </div>
+        <div>
+          <span className="lbl">Speicher</span>
+          <div className="card p-4">
+            <div className="flex items-center justify-between text-[13px]">
+              <span className="text-ink-500">Anforderungen</span>
+              <span className="font-mono font-medium text-ink-900">{(data.anforderungen || []).length}</span>
+            </div>
+            <div className="flex items-center justify-between text-[13px] mt-2">
+              <span className="text-ink-500">Richtlinien</span>
+              <span className="font-mono font-medium text-ink-900">{(data.richtlinien || []).length}</span>
+            </div>
+            <div className="flex items-center justify-between text-[13px] mt-2">
+              <span className="text-ink-500">Speicherort</span>
+              <span className="font-mono text-ink-700 text-xs">localStorage</span>
+            </div>
+            <p className="text-[11px] text-ink-400 mt-3 leading-relaxed">
+              Daten werden lokal im Browser gespeichert. Für eine dauerhaft sichere Aufbewahrung regelmäßig exportieren.
+            </p>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+// ── Schutzbedarf badge ─────────────────────────────────────────────────────
+const SchutzbedarfBadge = ({ wert }) => {
+  const cfg = SCHUTZBEDARF_CONFIG[wert] || SCHUTZBEDARF_CONFIG.niedrig;
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium ${cfg.cls}`}>
+      <span className="sb-dot w-1.5 h-1.5 rounded-full"></span>
+      {cfg.label}
+    </span>
+  );
+};
+
+// ── Form: Anforderung anlegen / bearbeiten ─────────────────────────────────
+const AnforderungForm = ({ initial, onSave, onClose, anforderungen }) => {
+  const isEdit = !!initial?.id;
+  const defaultKat = Object.keys(KATEGORIEN)[0];
+  const [form, setForm] = useState(() => initial || {
+    anforderung_id: '', kategorie: defaultKat, unterkategorie: '',
+    beschreibung: '', schutzobjektarten: [], schutzbedarf: 'mittel',
+    dienstleistungsmodelle: [], kritische_funktionen: false,
+  });
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const setKategorie = (kat) => setForm(f => ({ ...f, kategorie: kat, unterkategorie: '' }));
+  const toggleObjektart = (art) => setForm(f => ({
+    ...f,
+    schutzobjektarten: f.schutzobjektarten.includes(art)
+      ? f.schutzobjektarten.filter(a => a !== art)
+      : [...f.schutzobjektarten, art],
+  }));
+  const toggleDienstleistung = (dl) => setForm(f => ({
+    ...f,
+    dienstleistungsmodelle: (f.dienstleistungsmodelle || []).includes(dl)
+      ? f.dienstleistungsmodelle.filter(d => d !== dl)
+      : [...(f.dienstleistungsmodelle || []), dl],
+  }));
+
+  const handleSave = () => {
+    if (!form.anforderung_id.trim()) return alert('Bitte eine ID eingeben.');
+    const idTrimmed = form.anforderung_id.trim();
+    const duplicate = (anforderungen || []).some(a => a.id !== form.id && a.anforderung_id === idTrimmed);
+    if (duplicate) return alert(`Die ID "${idTrimmed}" ist bereits vergeben. Bitte wähle eine andere ID.`);
+    if (!form.beschreibung.trim()) return alert('Bitte eine Beschreibung eingeben.');
+    if (form.schutzobjektarten.length === 0) return alert('Bitte mindestens eine Schutzobjektart auswählen.');
+    onSave(form);
+  };
+
+  return (
+    <Modal
+      title={isEdit ? 'Anforderung bearbeiten' : 'Neue Anforderung'}
+      subtitle={isEdit ? form.anforderung_id : 'Lege eine neue Sicherheits- oder Compliance-Anforderung an.'}
+      onClose={onClose}
+      size="xl"
+      footer={
+        <>
+          <button onClick={onClose} className="btn btn-ghost">Abbrechen</button>
+          <button onClick={handleSave} className="btn btn-primary">
+            {isEdit ? 'Speichern' : 'Anforderung erstellen'}
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-6">
+        <div className="grid grid-cols-3 gap-4">
+          <Field label="ID" required>
+            <input className="field font-mono" value={form.anforderung_id} onChange={e => set('anforderung_id', e.target.value)}/>
+          </Field>
+          <Field label="Kategorie">
+            <select className="field" value={form.kategorie} onChange={e => setKategorie(e.target.value)}>
+              {Object.keys(KATEGORIEN).map(k => <option key={k}>{k}</option>)}
+            </select>
+          </Field>
+          <Field label="Unterkategorie">
+            <select className="field" value={form.unterkategorie} onChange={e => set('unterkategorie', e.target.value)}>
+              <option value="">— Bitte wählen —</option>
+              {(KATEGORIEN[form.kategorie] || []).map(u => <option key={u}>{u}</option>)}
+            </select>
+          </Field>
+        </div>
+
+        <Field label="Beschreibung" required>
+          <textarea className="field" rows={6} value={form.beschreibung} onChange={e => set('beschreibung', e.target.value)} placeholder="Anforderung präzise beschreiben…"/>
+        </Field>
+
+        <Field label="Schutzbedarf">
+          <div className="seg">
+            {Object.entries(SCHUTZBEDARF_CONFIG).map(([val, cfg]) => (
+              <button
+                key={val} type="button"
+                onClick={() => set('schutzbedarf', val)}
+                className={`seg-btn ${form.schutzbedarf === val ? 'is-active' : ''}`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  val === 'niedrig' ? 'bg-[#4a8a7a]' : val === 'mittel' ? 'bg-[#c08020]' : 'bg-[#b53a31]'
+                }`}></span>
+                {cfg.label}
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        <Field label="Betroffene Schutzobjektarten" required hint="Mehrfachauswahl">
+          <div className="grid grid-cols-2 gap-2">
+            {SCHUTZOBJEKTARTEN.map(art => {
+              const checked = form.schutzobjektarten.includes(art);
+              return (
+                <div key={art} onClick={() => toggleObjektart(art)} className={`opt ${checked ? 'is-checked' : ''}`}>
+                  <span className="opt-check">
+                    {checked && <svg viewBox="0 0 12 12" fill="none" className="w-2.5 h-2.5"><path d="M2 6l3 3 5-5" stroke="#1a1a1d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                  </span>
+                  <span className="flex-1 truncate">{art}</span>
+                </div>
+              );
+            })}
+          </div>
+        </Field>
+
+        <Field label="Relevante Dienstleistungsmodelle" hint="Mehrfachauswahl">
+          <div className="flex flex-wrap gap-2">
+            {DIENSTLEISTUNGSMODELLE.map(dl => {
+              const checked = (form.dienstleistungsmodelle || []).includes(dl);
+              return (
+                <div key={dl} onClick={() => toggleDienstleistung(dl)} className={`opt ${checked ? 'is-checked' : ''}`} style={{ minWidth: 0 }}>
+                  <span className="opt-check">
+                    {checked && <svg viewBox="0 0 12 12" fill="none" className="w-2.5 h-2.5"><path d="M2 6l3 3 5-5" stroke="#1a1a1d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                  </span>
+                  <span className="font-mono text-[12px]">{dl}</span>
+                </div>
+              );
+            })}
+          </div>
+        </Field>
+
+        <Field label="Kritische / wichtige Funktionen">
+          <div onClick={() => set('kritische_funktionen', !form.kritische_funktionen)}
+            className={`opt ${form.kritische_funktionen ? 'is-checked' : ''}`}
+            style={{ width: 'fit-content' }}>
+            <span className="opt-check">
+              {form.kritische_funktionen && <svg viewBox="0 0 12 12" fill="none" className="w-2.5 h-2.5"><path d="M2 6l3 3 5-5" stroke="#1a1a1d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            </span>
+            <span>Unterstützt kritische und wichtige Funktionen</span>
+          </div>
+        </Field>
+      </div>
+    </Modal>
+  );
+};
+
+// ── Detail panel ───────────────────────────────────────────────────────────
+const AnforderungDetailPanel = ({ anforderung, onEdit, onClose, richtlinien = [] }) => {
+  const cfg = SCHUTZBEDARF_CONFIG[anforderung.schutzbedarf] || {};
+  const linkedRichtlinien = richtlinien.filter(r => (r.anforderungen_ids || []).includes(anforderung.id));
+  return (
+    <Modal
+      title={anforderung.anforderung_id}
+      subtitle={anforderung.kategorie + (anforderung.unterkategorie ? ' · ' + anforderung.unterkategorie : '')}
+      onClose={onClose}
+      size="lg"
+      footer={
+        <>
+          <button onClick={onClose} className="btn btn-ghost">Schließen</button>
+          <button onClick={onEdit} className="btn btn-primary">
+            <Icon name="edit" cls="w-3.5 h-3.5"/> Bearbeiten
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <SchutzbedarfBadge wert={anforderung.schutzbedarf}/>
+          {anforderung.kritische_funktionen && (
+            <span className="pill-crit">
+              <span className="w-1 h-1 rounded-full bg-petrol-600"></span>
+              Kritische Funktion
+            </span>
+          )}
+        </div>
+
+        <div>
+          <span className="lbl">Beschreibung</span>
+          <p className="text-[14px] text-ink-900 leading-relaxed">{anforderung.beschreibung}</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-6">
+          <div>
+            <span className="lbl">Schutzobjektarten</span>
+            {anforderung.schutzobjektarten.length === 0
+              ? <span className="text-sm text-ink-300">—</span>
+              : <div className="flex flex-wrap gap-1.5">
+                  {anforderung.schutzobjektarten.map(s => <span key={s} className="tag-soft">{s}</span>)}
+                </div>
+            }
+          </div>
+          <div>
+            <span className="lbl">Dienstleistungsmodelle</span>
+            {(anforderung.dienstleistungsmodelle || []).length === 0
+              ? <span className="text-sm text-ink-300">—</span>
+              : <div className="flex flex-wrap gap-1.5">
+                  {anforderung.dienstleistungsmodelle.map(dl => <span key={dl} className="tag">{dl}</span>)}
+                </div>
+            }
+          </div>
+        </div>
+
+        {/* Verknüpfte Richtlinien */}
+        <div>
+          <span className="lbl">Verknüpfte Richtlinien</span>
+          {linkedRichtlinien.length === 0 ? (
+            <p className="text-[13px] text-ink-400 mt-1">Keine Richtlinien verknüpft.</p>
+          ) : (
+            <div className="mt-2 border border-line rounded-lg divide-y divide-line overflow-hidden">
+              {linkedRichtlinien.map(r => (
+                <div key={r.id} className="flex items-center gap-3 px-3 py-2.5">
+                  <Icon name="book" cls="w-3.5 h-3.5 text-ink-400 flex-shrink-0"/>
+                  <span className="font-mono text-[11px] font-semibold text-brand-600 flex-shrink-0">{r.richtlinie_id}</span>
+                  <span className="text-[12.5px] text-ink-700 truncate">{r.titel}</span>
+                  <VertraulichkeitBadge id={r.vertraulichkeit}/>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-6 pt-4 border-t border-line">
+          <div>
+            <span className="lbl">Erstellt</span>
+            <p className="text-[13px] text-ink-700 font-mono">{fmtDateTime(anforderung.erstellt_am)}</p>
+          </div>
+          <div>
+            <span className="lbl">Zuletzt geändert</span>
+            <p className="text-[13px] text-ink-700 font-mono">{fmtDateTime(anforderung.aktualisiert_am)}</p>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+// ── List view ──────────────────────────────────────────────────────────────
+const AnforderungenView = ({ anforderungen, onCreate, onView, onEdit, onDelete }) => {
+  const [search, setSearch] = useState('');
+  const [kategorieFilter, setKategorieFilter] = useState('alle');
+  const [bedarfFilter, setBedarfFilter] = useState('alle');
+
+  const stats = useMemo(() => ({
+    hoch:    anforderungen.filter(a => a.schutzbedarf === 'hoch').length,
+    mittel:  anforderungen.filter(a => a.schutzbedarf === 'mittel').length,
+    niedrig: anforderungen.filter(a => a.schutzbedarf === 'niedrig').length,
+    krit:    anforderungen.filter(a => a.kritische_funktionen).length,
+  }), [anforderungen]);
+
+  const filtered = anforderungen.filter(a => {
+    const q = search.toLowerCase();
+    const matchSearch = !q || a.anforderung_id.toLowerCase().includes(q) || a.beschreibung.toLowerCase().includes(q) || (a.kategorie || '').toLowerCase().includes(q) || (a.unterkategorie || '').toLowerCase().includes(q);
+    const matchKat = kategorieFilter === 'alle' || a.kategorie === kategorieFilter;
+    const matchBedarf = bedarfFilter === 'alle' || a.schutzbedarf === bedarfFilter;
+    return matchSearch && matchKat && matchBedarf;
+  }).sort((a, b) => a.anforderung_id.localeCompare(b.anforderung_id));
+
+  const hasFilter = search || kategorieFilter !== 'alle' || bedarfFilter !== 'alle';
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-end justify-between gap-6">
+        <div>
+          <h1 className="text-[28px] font-medium text-ink-900 tracking-tight leading-none">
+            Anforderungen
+          </h1>
+          <p className="text-[13px] text-ink-400 mt-2">
+            Sicherheits- und Compliance-Anforderungen auf Basis von DORA, BAIT, MaRisk und vertraglichen Anforderungen.
+          </p>
+        </div>
+        <button onClick={onCreate} className="btn btn-primary">
+          <Icon name="plus" cls="w-3.5 h-3.5"/> Neue Anforderung
+        </button>
+      </div>
+
+      {/* Stats strip */}
+      <div className="grid grid-cols-5 gap-3">
+        <StatCard label="Alle" value={anforderungen.length} accent="black" icon="layers"/>
+        <StatCard label="Niedriger Schutzbedarf" value={stats.niedrig} accent="green" icon="shield"/>
+        <StatCard label="Mittlerer Schutzbedarf" value={stats.mittel} accent="yellow" icon="shield-half"/>
+        <StatCard label="Hoher Schutzbedarf" value={stats.hoch} accent="red" icon="shield-alert"/>
+        <StatCard label="Kritische Funktionen" value={stats.krit} accent="black" icon="zap"/>
+      </div>
+
+      {/* Toolbar */}
+      <div className="toolbar">
+        {/* Suche */}
+        <label className={`toolbar-seg seg-search ${search ? 'is-active' : ''}`}>
+          <Icon name="search" cls="seg-ico"/>
+          <input
+            placeholder="Suche nach ID, Beschreibung, Kategorie…"
+            value={search} onChange={e => setSearch(e.target.value)}
+          />
+        </label>
+        {/* Kategorie */}
+        <label className={`toolbar-seg has-select ${kategorieFilter !== 'alle' ? 'is-active' : ''}`} style={{ flex: '1 1 0', minWidth: 0 }}>
+          <Icon name="layers" cls="seg-ico"/>
+          <span className="seg-label">Kategorie</span>
+          <select
+            value={kategorieFilter} onChange={e => setKategorieFilter(e.target.value)}
+            style={{ flex: 1, minWidth: 0 }}
+          >
+            <option value="alle">Alle</option>
+            {Object.keys(KATEGORIEN).map(k => <option key={k}>{k}</option>)}
+          </select>
+        </label>
+        {/* Schutzbedarf */}
+        <label className={`toolbar-seg has-select ${bedarfFilter !== 'alle' ? 'is-active' : ''}`} style={{ flex: '1 1 0', minWidth: 0 }}>
+          <Icon name="shield" cls="seg-ico"/>
+          <span className="seg-label">Schutzbedarf</span>
+          <select
+            value={bedarfFilter} onChange={e => setBedarfFilter(e.target.value)}
+            style={{ flex: 1, minWidth: 0 }}
+          >
+            <option value="alle">Alle</option>
+            <option value="niedrig">Niedrig</option>
+            <option value="mittel">Mittel</option>
+            <option value="hoch">Hoch</option>
+          </select>
+        </label>
+        {/* Reset */}
+        {hasFilter && (
+          <button
+            onClick={() => { setSearch(''); setKategorieFilter('alle'); setBedarfFilter('alle'); }}
+            className="toolbar-reset"
+          >
+            <Icon name="x" cls="w-3.5 h-3.5"/> Zurücksetzen
+          </button>
+        )}
+        {/* Count */}
+        <div className="toolbar-count">
+          {hasFilter && <span className="count-dot"/>}
+          <span><b>{filtered.length}</b> von {anforderungen.length}</span>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="card overflow-x-auto shadow-soft">
+        {filtered.length === 0
+          ? <EmptyState hasFilter={hasFilter} onCreate={onCreate}/>
+          : <table className="data-table" style={{ minWidth: '960px' }}>
+              <thead>
+                <tr>
+                  <th style={{ width: '110px' }}>ID</th>
+                  <th>Beschreibung</th>
+                  <th style={{ width: '200px' }}>Kategorie</th>
+                  <th style={{ width: '110px' }}>Schutzbedarf</th>
+                  <th style={{ width: '170px' }}>Dienstleistung</th>
+                  <th style={{ width: '60px' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(a => (
+                  <tr key={a.id} className="row-clickable" onClick={() => onView(a)}>
+                    <td>
+                      <span className="id-pill">{a.anforderung_id}</span>
+                    </td>
+                    <td>
+                      <p className="text-[13.5px] text-ink-900 line-clamp-2 leading-snug">{a.beschreibung}</p>
+                      {a.kritische_funktionen && (
+                        <span className="pill-crit mt-1.5">
+                          <span className="w-1 h-1 rounded-full bg-petrol-600"></span>
+                          Kritische Funktion
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <p className="text-[12.5px] text-ink-700 leading-snug">{a.kategorie}</p>
+                      {a.unterkategorie && <p className="text-[11px] text-ink-400 mt-0.5 leading-snug truncate" style={{ maxWidth: '180px' }}>{a.unterkategorie}</p>}
+                    </td>
+                    <td><SchutzbedarfBadge wert={a.schutzbedarf}/></td>
+                    <td>
+                      <div className="flex flex-wrap gap-1">
+                        {(a.dienstleistungsmodelle || []).length === 0
+                          ? <span className="text-xs text-ink-300">—</span>
+                          : (a.dienstleistungsmodelle || []).map(dl => <span key={dl} className="tag">{dl}</span>)
+                        }
+                      </div>
+                    </td>
+                    <td onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center gap-0.5 justify-end">
+                        <button onClick={() => onEdit(a)} className="p-1.5 rounded-md text-ink-400 hover:text-ink-900 hover:bg-ink-50 transition-colors" title="Bearbeiten">
+                          <Icon name="edit" cls="w-3.5 h-3.5"/>
+                        </button>
+                        <button onClick={() => onDelete(a.id)} className="p-1.5 rounded-md text-ink-400 hover:text-[#a13d36] hover:bg-rose-50 transition-colors" title="Löschen">
+                          <Icon name="trash" cls="w-3.5 h-3.5"/>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+        }
+      </div>
+    </div>
+  );
+};
+
+// ── Stat card ──────────────────────────────────────────────────────────────
+const StatCard = ({ label, value, accent, icon }) => {
+  const accents = {
+    black:  { fg: '#0a1828', bg: '#e8ecef', dot: '#0a1828' },
+    green:  { fg: '#2e5a4d', bg: '#e6f1ee', dot: '#4a8a7a' },
+    yellow: { fg: '#6e4f10', bg: '#f7eed8', dot: '#c08020' },
+    red:    { fg: '#7a261f', bg: '#f7e3df', dot: '#b53a31' },
+    ink:    { fg: '#0A2845', bg: '#eef2f5', dot: '#0A2845' },
+    sage:   { fg: '#2e5a4d', bg: '#e6f1ee', dot: '#4a8a7a' },
+    amber:  { fg: '#6e4f10', bg: '#f7eed8', dot: '#c08020' },
+    rose:   { fg: '#7a261f', bg: '#f7e3df', dot: '#b53a31' },
+    petrol: { fg: '#0a5b62', bg: '#dff1f3', dot: '#0096A0' },
+  };
+  const c = accents[accent] || accents.ink;
+  return (
+    <div className="card p-4 shadow-soft">
+      <span className="block text-[11px] font-medium text-ink-400 uppercase tracking-wider leading-snug mb-3">{label}</span>
+      <div className="flex items-end justify-between gap-3">
+        <p
+          className="text-[26px] font-medium tracking-tight leading-none font-mono"
+          style={{ color: c.fg }}
+        >
+          {String(value).padStart(2, '0')}
+        </p>
+        <span
+          className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+          style={{ background: c.bg, color: c.dot }}
+        >
+          <Icon name={icon} cls="w-[18px] h-[18px]"/>
+        </span>
+      </div>
+    </div>
+  );
+};
+
+// ── Empty state ────────────────────────────────────────────────────────────
+const EmptyState = ({ hasFilter, onCreate }) => (
+  <div className="px-12 py-20 text-center">
+    <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-ink-50 flex items-center justify-center text-ink-300">
+      <Icon name={hasFilter ? 'search' : 'list'} cls="w-5 h-5"/>
+    </div>
+    <p className="text-[15px] font-medium text-ink-900 mb-1">
+      {hasFilter ? 'Keine Treffer' : 'Noch keine Anforderungen'}
+    </p>
+    <p className="text-[13px] text-ink-400 mb-5">
+      {hasFilter ? 'Passe die Filter an oder setze sie zurück.' : 'Lege deine erste Sicherheits- oder Compliance-Anforderung an.'}
+    </p>
+    {!hasFilter && (
+      <button onClick={onCreate} className="btn btn-primary">
+        <Icon name="plus" cls="w-3.5 h-3.5"/> Neue Anforderung
+      </button>
+    )}
+  </div>
+);
+
+// ── Vertraulichkeit Badge ─────────────────────────────────────────────────
+const VertraulichkeitBadge = ({ id }) => {
+  const v = VERTRAULICHKEIT.find(x => x.id === id);
+  if (!v) return null;
+  return (
+    <span style={{ background: v.bg, color: v.fg, border: `1px solid ${v.border}` }}
+      className="inline-flex items-center px-2 py-0.5 rounded text-[11.5px] font-medium">
+      {v.label}
+    </span>
+  );
+};
+
+// ── RichtlinieForm ────────────────────────────────────────────────────────
+const RichtlinieForm = ({ initial, onSave, onClose, anforderungen }) => {
+  const isEdit = !!initial?.id;
+  const pdfRef = useRef();
+  const [form, setForm] = useState(() => initial || {
+    richtlinie_id: '', titel: '',
+    kategorie: RICHTLINIEN_KATEGORIEN[0],
+    art: RICHTLINIEN_ART[1],
+    vertraulichkeit: 'K2',
+    anwender: [],
+    verantwortung: '',
+    pdf: null,
+    anforderungen_ids: [],
+  });
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const toggleAnwender = (opt) => setForm(f => ({
+    ...f,
+    anwender: f.anwender.includes(opt) ? f.anwender.filter(x => x !== opt) : [...f.anwender, opt],
+  }));
+
+  const toggleAnforderung = (id) => setForm(f => ({
+    ...f,
+    anforderungen_ids: f.anforderungen_ids.includes(id)
+      ? f.anforderungen_ids.filter(x => x !== id)
+      : [...f.anforderungen_ids, id],
+  }));
+
+  const handlePdf = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 4 * 1024 * 1024) {
+      alert('Die Datei ist zu groß (max. 4 MB). Bitte eine kleinere PDF-Datei wählen.');
+      return;
+    }
+    setPdfLoading(true);
+    const reader = new FileReader();
+    reader.onload = ev => {
+      set('pdf', { name: file.name, size: file.size, data: ev.target.result });
+      setPdfLoading(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSave = () => {
+    if (!form.richtlinie_id.trim()) return alert('Bitte eine ID eingeben.');
+    if (!form.titel.trim()) return alert('Bitte einen Titel eingeben.');
+    onSave(form);
+  };
+
+  return (
+    <Modal title={isEdit ? 'Richtlinie bearbeiten' : 'Neue Richtlinie'} onClose={onClose} size="lg">
+      <div className="space-y-5">
+        {/* ID + Titel */}
+        <div className="grid grid-cols-[160px_1fr] gap-4">
+          <Field label="ID" required>
+            <input className="field font-mono" value={form.richtlinie_id} onChange={e => set('richtlinie_id', e.target.value)} placeholder="IS-R-1."/>
+          </Field>
+          <Field label="Titel" required>
+            <input className="field" value={form.titel} onChange={e => set('titel', e.target.value)} placeholder="Bezeichnung der Richtlinie"/>
+          </Field>
+        </div>
+
+        {/* Kategorie + Art */}
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Kategorie">
+            <select className="field" value={form.kategorie} onChange={e => set('kategorie', e.target.value)}>
+              {RICHTLINIEN_KATEGORIEN.map(k => <option key={k}>{k}</option>)}
+            </select>
+          </Field>
+          <Field label="Art">
+            <select className="field" value={form.art} onChange={e => set('art', e.target.value)}>
+              {RICHTLINIEN_ART.map(a => <option key={a}>{a}</option>)}
+            </select>
+          </Field>
+        </div>
+
+        {/* Vertraulichkeit */}
+        <Field label="Vertraulichkeit">
+          <div className="flex gap-2 flex-wrap mt-0.5">
+            {VERTRAULICHKEIT.map(v => (
+              <label key={v.id} onClick={() => set('vertraulichkeit', v.id)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors select-none"
+                style={form.vertraulichkeit === v.id
+                  ? { background: v.bg, borderColor: v.border, color: v.fg }
+                  : { background: '#fff', borderColor: 'var(--line)', color: 'var(--ink-500)' }}>
+                <span className="w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors"
+                  style={form.vertraulichkeit === v.id ? { background: v.fg, borderColor: v.fg } : { borderColor: 'var(--line-strong)' }}>
+                  {form.vertraulichkeit === v.id && <Icon name="check" cls="w-2 h-2 text-white"/>}
+                </span>
+                <span className="text-[12.5px] font-medium">{v.label}</span>
+              </label>
+            ))}
+          </div>
+        </Field>
+
+        {/* Anwender */}
+        <Field label="Anwender">
+          <div className="flex gap-3 mt-0.5">
+            {ANWENDER_OPTIONEN.map(opt => {
+              const checked = form.anwender.includes(opt);
+              return (
+                <label key={opt} onClick={() => toggleAnwender(opt)}
+                  className={`flex items-center gap-2.5 px-4 py-2 rounded-lg border cursor-pointer transition-colors select-none ${checked ? 'bg-brand-50 border-brand-200 text-brand-700' : 'bg-white border-line text-ink-500 hover:border-line-strong'}`}>
+                  <span className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${checked ? 'bg-brand-600 border-brand-600' : 'border-ink-200'}`}>
+                    {checked && <Icon name="check" cls="w-2.5 h-2.5 text-white"/>}
+                  </span>
+                  <span className="text-[13px] font-medium">{opt}</span>
+                </label>
+              );
+            })}
+          </div>
+        </Field>
+
+        {/* Verantwortung */}
+        <Field label="Verantwortung">
+          <input className="field" value={form.verantwortung} onChange={e => set('verantwortung', e.target.value)} placeholder="z.B. CISO, IT-Leitung, Datenschutzbeauftragter"/>
+        </Field>
+
+        {/* PDF-Anhang */}
+        <Field label="PDF-Dokument">
+          <div className="flex items-center gap-3">
+            {form.pdf ? (
+              <div className="flex items-center gap-2 flex-1 min-w-0 px-3 py-2 bg-ink-50 rounded-lg border border-line">
+                <Icon name="file-text" cls="w-4 h-4 text-ink-400 flex-shrink-0"/>
+                <span className="text-[13px] text-ink-700 truncate">{form.pdf.name}</span>
+                <span className="text-[11px] text-ink-400 flex-shrink-0">({Math.round(form.pdf.size / 1024)} KB)</span>
+                <button onClick={() => set('pdf', null)} className="ml-auto text-ink-300 hover:text-rose-600 transition-colors">
+                  <Icon name="x" cls="w-3.5 h-3.5"/>
+                </button>
+              </div>
+            ) : (
+              <div className="flex-1 px-3 py-2 bg-ink-50 rounded-lg border border-dashed border-line text-[13px] text-ink-400">
+                {pdfLoading ? 'Wird geladen…' : 'Kein Dokument angehängt'}
+              </div>
+            )}
+            <button type="button" onClick={() => pdfRef.current.click()}
+              className="btn btn-outline btn-sm flex-shrink-0">
+              <Icon name="paperclip" cls="w-3.5 h-3.5"/> Datei wählen
+            </button>
+            <input ref={pdfRef} type="file" accept=".pdf" className="hidden" onChange={handlePdf}/>
+          </div>
+          <p className="text-[11px] text-ink-400 mt-1">Nur PDF-Dateien, max. 4 MB</p>
+        </Field>
+
+        {/* Verknüpfte Anforderungen */}
+        <Field label="Verknüpfte Anforderungen" hint="Mehrfachauswahl möglich">
+          {anforderungen.length === 0 ? (
+            <p className="text-[12.5px] text-ink-400 py-2">Noch keine Anforderungen vorhanden.</p>
+          ) : (
+            <div className="max-h-[180px] overflow-y-auto border border-line rounded-lg divide-y divide-line">
+              {anforderungen.map(a => {
+                const checked = form.anforderungen_ids.includes(a.id);
+                return (
+                  <label key={a.id} onClick={() => toggleAnforderung(a.id)}
+                    className={`flex items-start gap-3 px-3 py-2.5 cursor-pointer transition-colors select-none ${checked ? 'bg-brand-50' : 'hover:bg-ink-50'}`}>
+                    <span className={`mt-0.5 w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${checked ? 'bg-brand-600 border-brand-600' : 'border-ink-200'}`}>
+                      {checked && <Icon name="check" cls="w-2.5 h-2.5 text-white"/>}
+                    </span>
+                    <div className="min-w-0">
+                      <span className="text-[11px] font-mono font-semibold text-brand-600 mr-2">{a.anforderung_id}</span>
+                      <span className="text-[12.5px] text-ink-700 line-clamp-1">{a.beschreibung}</span>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </Field>
+
+        <div className="flex justify-end gap-2 pt-2 border-t border-line">
+          <button onClick={onClose} className="btn btn-ghost">Abbrechen</button>
+          <button onClick={handleSave} className="btn btn-primary">
+            {isEdit ? 'Speichern' : 'Richtlinie erstellen'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+// ── RichtlinieDetailPanel ──────────────────────────────────────────────────
+const RichtlinieDetailPanel = ({ richtlinie, onEdit, onClose, anforderungen }) => {
+  const linkedAnf = anforderungen.filter(a => (richtlinie.anforderungen_ids || []).includes(a.id));
+
+  const downloadPdf = () => {
+    const a = document.createElement('a');
+    a.href = richtlinie.pdf.data;
+    a.download = richtlinie.pdf.name;
+    a.click();
+  };
+
+  return (
+    <Modal title={richtlinie.richtlinie_id} subtitle={richtlinie.titel} onClose={onClose} size="lg"
+      footer={
+        <>
+          <button onClick={onClose} className="btn btn-ghost">Schließen</button>
+          <button onClick={onEdit} className="btn btn-primary">
+            <Icon name="edit" cls="w-3.5 h-3.5"/> Bearbeiten
+          </button>
+        </>
+      }>
+      <div className="space-y-6">
+        {/* Meta grid */}
+        <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+          <div>
+            <span className="lbl">Kategorie</span>
+            <p className="text-[13.5px] text-ink-900 font-medium">{richtlinie.kategorie}</p>
+          </div>
+          <div>
+            <span className="lbl">Art</span>
+            <p className="text-[13.5px] text-ink-900 font-medium">{richtlinie.art}</p>
+          </div>
+          <div>
+            <span className="lbl">Vertraulichkeit</span>
+            <VertraulichkeitBadge id={richtlinie.vertraulichkeit}/>
+          </div>
+          <div>
+            <span className="lbl">Verantwortung</span>
+            <p className="text-[13.5px] text-ink-900">{richtlinie.verantwortung || '—'}</p>
+          </div>
+          <div>
+            <span className="lbl">Anwender</span>
+            <div className="flex flex-wrap gap-1.5 mt-0.5">
+              {(richtlinie.anwender || []).length === 0
+                ? <span className="text-[13px] text-ink-400">—</span>
+                : (richtlinie.anwender || []).map(a => (
+                  <span key={a} className="inline-flex items-center gap-1 px-2 py-0.5 bg-ink-50 border border-line rounded text-[12px] text-ink-700">
+                    <Icon name="users" cls="w-3 h-3 text-ink-400"/>{a}
+                  </span>
+                ))}
+            </div>
+          </div>
+          <div>
+            <span className="lbl">PDF-Dokument</span>
+            {richtlinie.pdf ? (
+              <button onClick={downloadPdf} className="inline-flex items-center gap-1.5 text-[13px] text-brand-600 hover:underline mt-0.5">
+                <Icon name="file-text" cls="w-3.5 h-3.5"/>
+                {richtlinie.pdf.name}
+              </button>
+            ) : (
+              <span className="text-[13px] text-ink-400">Kein Anhang</span>
+            )}
+          </div>
+        </div>
+
+        {/* Verknüpfte Anforderungen */}
+        <div>
+          <span className="lbl">Verknüpfte Anforderungen</span>
+          {linkedAnf.length === 0 ? (
+            <p className="text-[13px] text-ink-400 mt-1">Keine Anforderungen verknüpft.</p>
+          ) : (
+            <div className="mt-2 border border-line rounded-lg divide-y divide-line overflow-hidden">
+              {linkedAnf.map(a => (
+                <div key={a.id} className="flex items-start gap-3 px-3 py-2.5">
+                  <span className="font-mono text-[11px] font-semibold text-brand-600 mt-0.5 flex-shrink-0">{a.anforderung_id}</span>
+                  <span className="text-[12.5px] text-ink-700 leading-snug">{a.beschreibung}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Zeitstempel */}
+        <div className="grid grid-cols-2 gap-6 pt-4 border-t border-line">
+          <div>
+            <span className="lbl">Erstellt</span>
+            <p className="text-[13px] text-ink-700 font-mono">{fmtDateTime(richtlinie.erstellt_am)}</p>
+          </div>
+          <div>
+            <span className="lbl">Zuletzt geändert</span>
+            <p className="text-[13px] text-ink-700 font-mono">{fmtDateTime(richtlinie.aktualisiert_am)}</p>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+// ── RichtlinienView ───────────────────────────────────────────────────────
+const RichtlinienView = ({ richtlinien, onCreate, onView, onEdit, onDelete }) => {
+  const [search, setSearch] = useState('');
+  const [katFilter, setKatFilter] = useState('alle');
+  const [artFilter, setArtFilter] = useState('alle');
+
+  const filtered = richtlinien.filter(r => {
+    const q = search.toLowerCase();
+    const matchSearch = !q || r.richtlinie_id.toLowerCase().includes(q) || r.titel.toLowerCase().includes(q) || r.kategorie.toLowerCase().includes(q);
+    const matchKat = katFilter === 'alle' || r.kategorie === katFilter;
+    const matchArt = artFilter === 'alle' || r.art === artFilter;
+    return matchSearch && matchKat && matchArt;
+  }).sort((a, b) => a.richtlinie_id.localeCompare(b.richtlinie_id));
+
+  const hasFilter = search || katFilter !== 'alle' || artFilter !== 'alle';
+
+  const stats = useMemo(() => ({
+    is:  richtlinien.filter(r => r.kategorie === 'Informationssicherheit').length,
+    bcm: richtlinien.filter(r => r.kategorie === 'BCM').length,
+    rm:  richtlinien.filter(r => r.kategorie === 'Risikomanagement').length,
+    pdf: richtlinien.filter(r => r.pdf).length,
+  }), [richtlinien]);
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-end justify-between gap-6">
+        <div>
+          <h1 className="text-[28px] font-medium text-ink-900 tracking-tight leading-none">Richtlinien</h1>
+          <p className="text-[13px] text-ink-400 mt-2">Strategien, Richtlinien, Leitlinien und Verfahrensanweisungen verwalten.</p>
+        </div>
+        <button onClick={onCreate} className="btn btn-primary">
+          <Icon name="plus" cls="w-3.5 h-3.5"/> Neue Richtlinie
+        </button>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-4 gap-3">
+        <StatCard label="Gesamt" value={richtlinien.length} accent="black" icon="book"/>
+        <StatCard label="Informationssicherheit" value={stats.is} accent="petrol" icon="shield"/>
+        <StatCard label="BCM" value={stats.bcm} accent="yellow" icon="layers"/>
+        <StatCard label="Risikomanagement" value={stats.rm} accent="red" icon="shield-alert"/>
+      </div>
+
+      {/* Toolbar */}
+      <div className="card shadow-soft flex items-center gap-0 overflow-hidden">
+        <div className="search-wrap flex-1 min-w-0 border-r border-line">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path strokeLinecap="round" d="m20 20-3.5-3.5"/></svg>
+          <input className="field rounded-none border-0 shadow-none focus:ring-0 focus:border-0 bg-transparent"
+            placeholder="Suche nach ID, Titel, Kategorie…" value={search} onChange={e => setSearch(e.target.value)}/>
+        </div>
+        <div className="border-r border-line shrink-0">
+          <select className="field rounded-none border-0 shadow-none focus:ring-0 bg-transparent w-[200px]"
+            value={katFilter} onChange={e => setKatFilter(e.target.value)}>
+            <option value="alle">Alle Kategorien</option>
+            {RICHTLINIEN_KATEGORIEN.map(k => <option key={k}>{k}</option>)}
+          </select>
+        </div>
+        <div className="shrink-0">
+          <select className="field rounded-none border-0 shadow-none focus:ring-0 bg-transparent w-[180px]"
+            value={artFilter} onChange={e => setArtFilter(e.target.value)}>
+            <option value="alle">Alle Arten</option>
+            {RICHTLINIEN_ART.map(a => <option key={a}>{a}</option>)}
+          </select>
+        </div>
+        {hasFilter && (
+          <>
+            <div className="w-px self-stretch bg-line shrink-0"/>
+            <button onClick={() => { setSearch(''); setKatFilter('alle'); setArtFilter('alle'); }}
+              className="btn btn-ghost btn-sm mx-2 shrink-0">
+              <Icon name="x" cls="w-3.5 h-3.5"/> Zurücksetzen
+            </button>
+          </>
+        )}
+        <span className="ml-auto pr-4 text-[12px] text-ink-400 font-mono shrink-0 border-l border-line pl-4 py-2 self-stretch flex items-center">
+          {filtered.length} / {richtlinien.length}
+        </span>
+      </div>
+
+      {/* Tabelle */}
+      <div className="card overflow-x-auto shadow-soft">
+        {filtered.length === 0 ? (
+          <div className="px-12 py-20 text-center">
+            <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-ink-50 flex items-center justify-center text-ink-300">
+              <Icon name={hasFilter ? 'search' : 'book'} cls="w-5 h-5"/>
+            </div>
+            <p className="text-[15px] font-medium text-ink-900 mb-1">{hasFilter ? 'Keine Treffer' : 'Noch keine Richtlinien'}</p>
+            <p className="text-[13px] text-ink-400 mb-5">{hasFilter ? 'Passe die Filter an oder setze sie zurück.' : 'Erstelle deine erste Richtlinie.'}</p>
+            {!hasFilter && <button onClick={onCreate} className="btn btn-primary"><Icon name="plus" cls="w-3.5 h-3.5"/> Neue Richtlinie</button>}
+          </div>
+        ) : (
+          <table className="data-table" style={{ minWidth: '900px' }}>
+            <thead>
+              <tr>
+                <th style={{ width: '110px' }}>ID</th>
+                <th>Titel</th>
+                <th style={{ width: '160px' }}>Kategorie</th>
+                <th style={{ width: '150px' }}>Art</th>
+                <th style={{ width: '170px' }}>Vertraulichkeit</th>
+                <th style={{ width: '60px' }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(r => (
+                <tr key={r.id} className="row-clickable" onClick={() => onView(r)}>
+                  <td><span className="id-pill">{r.richtlinie_id}</span></td>
+                  <td>
+                    <p className="text-[13.5px] text-ink-900 font-medium leading-snug">{r.titel}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      {(r.anwender || []).map(a => (
+                        <span key={a} className="tag">{a}</span>
+                      ))}
+                      {r.pdf && (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-ink-400">
+                          <Icon name="paperclip" cls="w-3 h-3"/>{r.pdf.name}
+                        </span>
+                      )}
+                      {(r.anforderungen_ids || []).length > 0 && (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-brand-500">
+                          <Icon name="link" cls="w-3 h-3"/>{r.anforderungen_ids.length} Anforderung{r.anforderungen_ids.length !== 1 ? 'en' : ''}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td><p className="text-[12.5px] text-ink-700">{r.kategorie}</p></td>
+                  <td><span className="tag">{r.art}</span></td>
+                  <td><VertraulichkeitBadge id={r.vertraulichkeit}/></td>
+                  <td onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center gap-0.5 justify-end">
+                      <button onClick={() => onEdit(r)} className="p-1.5 rounded-md text-ink-400 hover:text-ink-900 hover:bg-ink-50 transition-colors" title="Bearbeiten">
+                        <Icon name="edit" cls="w-3.5 h-3.5"/>
+                      </button>
+                      <button onClick={() => onDelete(r.id)} className="p-1.5 rounded-md text-ink-400 hover:text-[#a13d36] hover:bg-rose-50 transition-colors" title="Löschen">
+                        <Icon name="trash" cls="w-3.5 h-3.5"/>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── App ────────────────────────────────────────────────────────────────────
+const App = () => {
+  const [data, setData] = useState(() => loadData() || SEED);
+  const [view, setView] = useState('anforderungen'); // 'anforderungen' | 'richtlinien'
+  const [showSettings, setShowSettings] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [anforderungModal, setAnforderungModal] = useState(null);
+  const [anforderungDetail, setAnforderungDetail] = useState(null);
+  const [richtlinieModal, setRichtlinieModal] = useState(null);
+  const [richtlinieDetail, setRichtlinieDetail] = useState(null);
+
+  useEffect(() => saveData(data), [data]);
+
+  // ── Anforderungen CRUD ──
+  const createAnforderung = (form) => {
+    const now = nowISO();
+    setData(d => ({ ...d, anforderungen: [...(d.anforderungen || []), { ...form, id: uuid(), erstellt_am: now, aktualisiert_am: now }] }));
+    setAnforderungModal(null);
+  };
+  const updateAnforderung = (form) => {
+    setData(d => ({ ...d, anforderungen: (d.anforderungen || []).map(a => a.id === form.id ? { ...a, ...form, aktualisiert_am: nowISO() } : a) }));
+    setAnforderungModal(null);
+  };
+  const deleteAnforderung = (id) => {
+    if (!confirm('Anforderung wirklich löschen?')) return;
+    setData(d => ({
+      ...d,
+      anforderungen: (d.anforderungen || []).filter(a => a.id !== id),
+      richtlinien: (d.richtlinien || []).map(r => ({ ...r, anforderungen_ids: (r.anforderungen_ids || []).filter(x => x !== id) })),
+    }));
+  };
+
+  // ── Richtlinien CRUD ──
+  const createRichtlinie = (form) => {
+    const now = nowISO();
+    setData(d => ({ ...d, richtlinien: [...(d.richtlinien || []), { ...form, id: uuid(), erstellt_am: now, aktualisiert_am: now }] }));
+    setRichtlinieModal(null);
+  };
+  const updateRichtlinie = (form) => {
+    setData(d => ({ ...d, richtlinien: (d.richtlinien || []).map(r => r.id === form.id ? { ...r, ...form, aktualisiert_am: nowISO() } : r) }));
+    setRichtlinieModal(null);
+    setRichtlinieDetail(prev => prev?.id === form.id ? { ...prev, ...form, aktualisiert_am: nowISO() } : prev);
+  };
+  const deleteRichtlinie = (id) => {
+    if (!confirm('Richtlinie wirklich löschen?')) return;
+    setData(d => ({ ...d, richtlinien: (d.richtlinien || []).filter(r => r.id !== id) }));
+  };
+
+  const anf = data.anforderungen || [];
+  const rl  = data.richtlinien  || [];
+
+  const navItems = [
+    { id: 'anforderungen', label: 'Anforderungen', icon: 'list',  count: anf.length },
+    { id: 'richtlinien',   label: 'Richtlinien',   icon: 'book',  count: rl.length  },
+  ];
+
+  return (
+    <div className="flex h-screen overflow-hidden">
+      {/* Sidebar */}
+      <aside className={`${sidebarOpen ? 'w-[220px]' : 'w-[56px]'} bg-[#eef3f7] border-r border-line flex flex-col transition-all duration-200 flex-shrink-0`}>
+        <div className="flex items-center gap-2.5 px-3.5 h-[60px] border-b border-line">
+          <div className="w-7 h-7 rounded-[7px] bg-brand-600 flex items-center justify-center flex-shrink-0 text-white">
+            <Icon name="shield" cls="w-3.5 h-3.5"/>
+          </div>
+          {sidebarOpen && (
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-semibold text-ink-900 leading-tight tracking-tight">Compliance</p>
+              <p className="text-[11px] text-ink-400 leading-tight">Management</p>
+            </div>
+          )}
+          {sidebarOpen && (
+            <button onClick={() => setSidebarOpen(false)} className="p-1.5 rounded-md text-ink-400 hover:text-ink-900 hover:bg-ink-100 transition-colors">
+              <Icon name="sidebar" cls="w-3.5 h-3.5"/>
+            </button>
+          )}
+        </div>
+        {!sidebarOpen && (
+          <button onClick={() => setSidebarOpen(true)} className="m-2 p-2 rounded-md text-ink-400 hover:text-ink-900 hover:bg-ink-100 transition-colors flex justify-center">
+            <Icon name="sidebar" cls="w-3.5 h-3.5"/>
+          </button>
+        )}
+
+        <nav className="flex-1 px-2 py-3 space-y-0.5">
+          {sidebarOpen && <p className="px-2 mb-1.5 text-[10px] font-medium text-ink-300 uppercase tracking-wider">Bibliothek</p>}
+          {navItems.map(item => (
+            <button key={item.id} onClick={() => setView(item.id)}
+              className={`nav-item w-full ${view === item.id ? 'active' : ''}`}>
+              <Icon name={item.icon} cls="w-3.5 h-3.5 flex-shrink-0"/>
+              {sidebarOpen && (
+                <>
+                  <span className="flex-1 text-left">{item.label}</span>
+                  <span className="font-mono text-[10.5px] opacity-60">{item.count}</span>
+                </>
+              )}
+            </button>
+          ))}
+        </nav>
+
+        <div className="px-2 py-3 border-t border-line">
+          <button onClick={() => setShowSettings(true)} className="nav-item w-full">
+            <Icon name="settings" cls="w-3.5 h-3.5 flex-shrink-0"/>
+            {sidebarOpen && 'Einstellungen'}
+          </button>
+        </div>
+      </aside>
+
+      {/* Main */}
+      <main className="flex-1 overflow-y-auto">
+        <div className="max-w-[1180px] mx-auto px-10 py-10">
+          {view === 'anforderungen' && (
+            <AnforderungenView
+              anforderungen={anf}
+              onCreate={() => setAnforderungModal('new')}
+              onView={a => setAnforderungDetail(a)}
+              onEdit={a => setAnforderungModal(a)}
+              onDelete={deleteAnforderung}
+            />
+          )}
+          {view === 'richtlinien' && (
+            <RichtlinienView
+              richtlinien={rl}
+              onCreate={() => setRichtlinieModal('new')}
+              onView={r => setRichtlinieDetail(r)}
+              onEdit={r => setRichtlinieModal(r)}
+              onDelete={deleteRichtlinie}
+            />
+          )}
+        </div>
+      </main>
+
+      {/* Anforderung Form */}
+      {anforderungModal && (
+        <AnforderungForm
+          initial={anforderungModal === 'new' ? { anforderung_id: '', kategorie: Object.keys(KATEGORIEN)[0], unterkategorie: '', beschreibung: '', schutzobjektarten: [], schutzbedarf: 'mittel', dienstleistungsmodelle: [], kritische_funktionen: false } : anforderungModal}
+          onSave={anforderungModal === 'new' ? createAnforderung : updateAnforderung}
+          onClose={() => setAnforderungModal(null)}
+          anforderungen={anf}
+        />
+      )}
+
+      {/* Anforderung Detail */}
+      {anforderungDetail && (
+        <AnforderungDetailPanel
+          anforderung={anforderungDetail}
+          richtlinien={rl}
+          onEdit={() => { setAnforderungModal(anforderungDetail); setAnforderungDetail(null); }}
+          onClose={() => setAnforderungDetail(null)}
+        />
+      )}
+
+      {/* Richtlinie Form */}
+      {richtlinieModal && (
+        <RichtlinieForm
+          initial={richtlinieModal === 'new' ? { richtlinie_id: '', titel: '', kategorie: RICHTLINIEN_KATEGORIEN[0], art: RICHTLINIEN_ART[1], vertraulichkeit: 'K2', anwender: [], verantwortung: '', pdf: null, anforderungen_ids: [] } : richtlinieModal}
+          onSave={richtlinieModal === 'new' ? createRichtlinie : updateRichtlinie}
+          onClose={() => setRichtlinieModal(null)}
+          anforderungen={anf}
+        />
+      )}
+
+      {/* Richtlinie Detail */}
+      {richtlinieDetail && (
+        <RichtlinieDetailPanel
+          richtlinie={richtlinieDetail}
+          anforderungen={anf}
+          onEdit={() => { setRichtlinieModal(richtlinieDetail); setRichtlinieDetail(null); }}
+          onClose={() => setRichtlinieDetail(null)}
+        />
+      )}
+
+      {showSettings && (
+        <EinstellungenModal
+          data={data}
+          onImport={newData => { setData({ anforderungen: newData.anforderungen || [], richtlinien: newData.richtlinien || [] }); saveData(newData); setShowSettings(false); }}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
+    </div>
+  );
+};
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App/>);
+</script>
+</body>
+</html>
