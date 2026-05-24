@@ -476,6 +476,15 @@ tailwind.config = {
   .seg-btn:hover { color: var(--ink-900); }
   .seg-btn.is-active { background: #ffffff; color: var(--ink-900); box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
 
+  /* Responsive: scrollable toolbar on small screens */
+  @media (max-width: 767px) {
+    .toolbar-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .toolbar-scroll .toolbar { min-width: 520px; border-radius: 12px; }
+  }
+
+  /* Sidebar slide transition for mobile drawer */
+  .sidebar-transition { transition: transform 0.22s cubic-bezier(.4,0,.2,1), width 0.2s; }
+
   @media print { .no-print { display: none !important; } }
 </style>
 </head>
@@ -1256,7 +1265,7 @@ const AnforderungForm = ({ initial, onSave, onClose, anforderungen, config }) =>
       }
     >
       <div className="space-y-5">
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Field label="ID" required>
             <input className="field font-mono" value={form.anforderung_id} onChange={e => set('anforderung_id', e.target.value)} placeholder="A.5.1.1"/>
           </Field>
@@ -1366,7 +1375,7 @@ const AnforderungenView = ({ anforderungen, onCreate, onView, onEdit, onDelete, 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-end justify-between gap-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-[28px] font-medium text-ink-900 tracking-tight leading-none">
             Anforderungen
@@ -1381,13 +1390,13 @@ const AnforderungenView = ({ anforderungen, onCreate, onView, onEdit, onDelete, 
       </div>
 
       {/* Stats strip */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <StatCard label="Anforderungen gesamt" value={anforderungen.length} accent="black" icon="layers"/>
         <StatCard label="Kategorien" value={new Set(anforderungen.map(a => a.kategorie)).size} accent="petrol" icon="list"/>
       </div>
 
       {/* Toolbar */}
-      <div className="toolbar">
+      <div className="toolbar-scroll"><div className="toolbar">
         <label className={`toolbar-seg seg-search ${search ? 'is-active' : ''}`}>
           <Icon name="search" cls="seg-ico"/>
           <input
@@ -1412,7 +1421,7 @@ const AnforderungenView = ({ anforderungen, onCreate, onView, onEdit, onDelete, 
           {hasFilter && <span className="count-dot"/>}
           <span><b>{filtered.length}</b> von {anforderungen.length}</span>
         </div>
-      </div>
+      </div></div>
 
       {/* Table */}
       <div className="card overflow-x-auto shadow-soft">
@@ -1579,7 +1588,7 @@ const RichtlinieForm = ({ initial, onSave, onClose, anforderungen, config }) => 
     <Modal title={isEdit ? 'Richtlinie bearbeiten' : 'Neue Richtlinie'} onClose={onClose} size="xl">
       <div className="space-y-5">
         {/* ID + Titel */}
-        <div className="grid grid-cols-[160px_1fr] gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-4">
           <Field label="ID" required>
             <input className="field font-mono" value={form.richtlinie_id} onChange={e => set('richtlinie_id', e.target.value)} placeholder="IS-R-1D"/>
           </Field>
@@ -1589,7 +1598,7 @@ const RichtlinieForm = ({ initial, onSave, onClose, anforderungen, config }) => 
         </div>
 
         {/* Kategorie + Unterkategorie + Art */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Field label="Kategorie">
             <select className="field" value={form.kategorie} onChange={e => setKategorie(e.target.value)}>
               {Object.keys(rlKategorien).map(k => <option key={k}>{k}</option>)}
@@ -1626,7 +1635,7 @@ const RichtlinieForm = ({ initial, onSave, onClose, anforderungen, config }) => 
         </Field>
 
         {/* Anwender + Verantwortung */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Anwender" hint="Mehrfachauswahl">
             <div className="flex flex-wrap gap-2 mt-0.5">
               {rlAnwender.map(opt => {
@@ -1891,7 +1900,7 @@ const RichtlinienView = ({ richtlinien, onCreate, onView, onEdit, onDelete, conf
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-end justify-between gap-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-[28px] font-medium text-ink-900 tracking-tight leading-none">Richtlinien</h1>
           <p className="text-[13px] text-ink-400 mt-2">Strategien, Richtlinien, Leitlinien und Verfahrensanweisungen verwalten.</p>
@@ -1902,7 +1911,7 @@ const RichtlinienView = ({ richtlinien, onCreate, onView, onEdit, onDelete, conf
       </div>
 
       {/* Stats */}
-      <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(katKeys.length + 1, 5)}, 1fr)` }}>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3" style={{ gridTemplateColumns: undefined }}>
         <StatCard label="Gesamt" value={stats.gesamt} accent="black" icon="book"/>
         {katKeys.slice(0, 4).map((k, i) => (
           <StatCard key={k} label={k} value={stats.kategorien[k] || 0} accent={['petrol','yellow','red','ink'][i] || 'ink'} icon="layers"/>
@@ -1910,7 +1919,7 @@ const RichtlinienView = ({ richtlinien, onCreate, onView, onEdit, onDelete, conf
       </div>
 
       {/* Toolbar */}
-      <div className="toolbar">
+      <div className="toolbar-scroll"><div className="toolbar">
         <label className={`toolbar-seg seg-search ${search ? 'is-active' : ''}`}>
           <Icon name="search" cls="seg-ico"/>
           <input placeholder="Suche nach ID, Titel, Kategorie…" value={search} onChange={e => setSearch(e.target.value)}/>
@@ -1940,7 +1949,7 @@ const RichtlinienView = ({ richtlinien, onCreate, onView, onEdit, onDelete, conf
           {hasFilter && <span className="count-dot"/>}
           <span><b>{filtered.length}</b> von {richtlinien.length}</span>
         </div>
-      </div>
+      </div></div>
 
       {/* Tabelle */}
       <div className="card overflow-x-auto shadow-soft">
@@ -2203,7 +2212,7 @@ const StartseiteView = ({ session, data, onEditWelcome, isAdmin }) => {
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <StatCard label="Anforderungen" value={anf.length} accent="petrol" icon="list"/>
         <StatCard label="Richtlinien"   value={rl.length}  accent="black"  icon="book"/>
       </div>
@@ -2264,7 +2273,7 @@ const BenutzerForm = ({ initial, onSave, onClose, currentUserId }) => {
 
 const BenutzerView = ({ users, session, onCreate, onEdit, onDelete }) => (
   <div className="space-y-6">
-    <div className="flex items-end justify-between gap-6">
+    <div className="flex flex-wrap items-end justify-between gap-4">
       <div>
         <h1 className="text-[28px] font-medium text-ink-900 tracking-tight leading-none">Benutzerverwaltung</h1>
         <p className="text-[13px] text-ink-400 mt-2">Benutzer und Zugriffsrechte verwalten.</p>
@@ -2308,7 +2317,7 @@ const App = () => {
   });
   const [view, setView] = useState('start');
   const [showSettings, setShowSettings] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024);
   const [anforderungModal, setAnforderungModal] = useState(null);
   const [anforderungDetail, setAnforderungDetail] = useState(null);
   const [richtlinieModal, setRichtlinieModal] = useState(null);
@@ -2473,8 +2482,13 @@ const App = () => {
 
   return (
     <div className="flex h-screen overflow-hidden">
+      {/* Mobile backdrop */}
+      {sidebarOpen && <div className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={() => setSidebarOpen(false)}/>}
+
       {/* Sidebar */}
-      <aside className={`${sidebarOpen ? 'w-[220px]' : 'w-[56px]'} bg-[#eef3f7] border-r border-line flex flex-col transition-all duration-200 flex-shrink-0`}>
+      <aside className={`sidebar-transition fixed lg:static top-0 left-0 h-full z-40 lg:z-auto flex-shrink-0
+        ${sidebarOpen ? 'w-[220px] translate-x-0' : '-translate-x-full lg:translate-x-0 lg:w-[56px]'}
+        bg-[#eef3f7] border-r border-line flex flex-col`}>
         <div className="flex items-center gap-2.5 px-3.5 h-[60px] border-b border-line">
           <div className="w-7 h-7 rounded-[7px] bg-brand-600 flex items-center justify-center flex-shrink-0 text-white">
             <Icon name="shield" cls="w-3.5 h-3.5"/>
@@ -2500,7 +2514,7 @@ const App = () => {
         <nav className="flex-1 px-2 py-3 space-y-0.5">
           {sidebarOpen && <p className="px-2 mb-1.5 text-[10px] font-medium text-ink-300 uppercase tracking-wider">Navigation</p>}
           {navItems.map(item => (
-            <button key={item.id} onClick={() => setView(item.id)}
+            <button key={item.id} onClick={() => { setView(item.id); if (window.innerWidth < 1024) setSidebarOpen(false); }}
               className={`nav-item w-full ${view === item.id ? 'active' : ''}`}>
               <Icon name={item.icon} cls="w-3.5 h-3.5 flex-shrink-0"/>
               {sidebarOpen && (
@@ -2527,7 +2541,7 @@ const App = () => {
             </div>
           )}
           {isAdmin && (
-            <button onClick={() => setShowSettings(true)} className="nav-item w-full">
+            <button onClick={() => { setShowSettings(true); if (window.innerWidth < 1024) setSidebarOpen(false); }} className="nav-item w-full">
               <Icon name="settings" cls="w-3.5 h-3.5 flex-shrink-0"/>
               {sidebarOpen && 'Einstellungen'}
             </button>
@@ -2552,8 +2566,27 @@ const App = () => {
       </aside>
 
       {/* Main */}
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-[1180px] mx-auto px-10 py-10">
+      <main className="flex-1 overflow-y-auto min-w-0">
+        {/* Mobile top bar */}
+        <div className="lg:hidden sticky top-0 z-20 h-14 bg-[#eef3f7] border-b border-line flex items-center px-4 gap-3">
+          <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-md text-ink-500 hover:text-ink-900 hover:bg-ink-100 transition-colors flex-shrink-0">
+            <Icon name="sidebar" cls="w-4 h-4"/>
+          </button>
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-6 h-6 rounded-[6px] bg-brand-600 flex items-center justify-center text-white flex-shrink-0">
+              <Icon name="shield" cls="w-3 h-3"/>
+            </div>
+            <span className="text-[13.5px] font-semibold text-ink-900 tracking-tight truncate">Compliance-Management</span>
+          </div>
+          {syncStatus !== 'idle' && (
+            <span className={`ml-auto flex-shrink-0 w-2 h-2 rounded-full ${
+              syncStatus === 'synced'  ? 'bg-[#4a8a7a]' :
+              syncStatus === 'syncing' ? 'bg-petrol-400 animate-pulse' : 'bg-[#b53a31]'
+            }`}/>
+          )}
+        </div>
+
+        <div className="max-w-[1400px] mx-auto px-4 py-6 sm:px-6 md:px-8 lg:px-10 lg:py-10">
           {view === 'start' && (
             <StartseiteView session={session} data={data} onEditWelcome={handleWelcomeChange} isAdmin={isAdmin}/>
           )}
