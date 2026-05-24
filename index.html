@@ -698,13 +698,28 @@ const GIST_TOKEN_KEY = 'richtlinien-gist-token';
 const GIST_ID_KEY    = 'richtlinien-gist-id-test';
 const GIST_FILENAME  = 'compliance-tool-data-test.json';
 
+const SESSION_KEY = 'compliance-session';
+
+const hashPin = async (pin) => {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pin));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+};
+
+const ROLE_LABELS = { leser: 'Leser', schreiber: 'Schreiber', admin: 'Admin' };
+const ROLE_COLORS = {
+  leser:     'bg-ink-100 text-ink-600 border-line',
+  schreiber: 'bg-petrol-50 text-petrol-700 border-petrol-200',
+  admin:     'bg-brand-50 text-brand-700 border-brand-200',
+};
+
 const loadData = () => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (!parsed.richtlinien) parsed.richtlinien = [];
-      if (!parsed.config) parsed.config = DEFAULT_CONFIG;
+      if (!parsed.config)      parsed.config = DEFAULT_CONFIG;
+      if (!parsed.users)       parsed.users  = [];
       return parsed;
     }
   } catch {}
@@ -726,6 +741,8 @@ const loadFromGist = async (token, gistId) => {
   if (!content) throw new Error('Datei nicht im Gist gefunden');
   const parsed = JSON.parse(content);
   if (!parsed.richtlinien) parsed.richtlinien = [];
+  if (!parsed.config)      parsed.config = DEFAULT_CONFIG;
+  if (!parsed.users)       parsed.users  = [];
   return parsed;
 };
 
@@ -801,7 +818,7 @@ const SEED = { anforderungen: [  {
     schutzbedarf: 'niedrig', dienstleistungsmodelle: ['SaaS', 'PaaS', 'IaaS', 'IKT-Beratung'], kritische_funktionen: false,
     erstellt_am: '2024-03-01', aktualisiert_am: '2024-03-01',
   },
-], richtlinien: [], config: DEFAULT_CONFIG};
+], richtlinien: [], users: [], config: DEFAULT_CONFIG};
 
 // ── Icons (inline SVG, 1.5 stroke) ─────────────────────────────────────────
 const Icon = ({ name, cls = 'w-4 h-4' }) => {
@@ -833,6 +850,10 @@ const Icon = ({ name, cls = 'w-4 h-4' }) => {
     'file-text': <><path strokeLinecap="round" strokeLinejoin="round" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z"/><path strokeLinecap="round" strokeLinejoin="round" d="M14 2v6h6M16 13H8m8 4H8m2-8H8"/></>,
     lock:     <path strokeLinecap="round" strokeLinejoin="round" d="M17 11H7a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2ZM12 7a3 3 0 0 0-3 3v1h6v-1a3 3 0 0 0-3-3Z"/>,
     users:    <><path strokeLinecap="round" strokeLinejoin="round" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path strokeLinecap="round" strokeLinejoin="round" d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></>,
+    user:     <><path strokeLinecap="round" strokeLinejoin="round" d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></>,
+    home:     <path strokeLinecap="round" strokeLinejoin="round" d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/>,
+    'log-out':<path strokeLinecap="round" strokeLinejoin="round" d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4m7 14 5-5-5-5m5 5H9"/>,
+    'chevron-left': <path strokeLinecap="round" strokeLinejoin="round" d="m15 18-6-6 6-6"/>,
   };
   return (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.6} stroke="currentColor" className={cls}>
@@ -1243,7 +1264,7 @@ const AnforderungForm = ({ initial, onSave, onClose, anforderungen, config }) =>
 };
 
 // ── Detail panel ───────────────────────────────────────────────────────────
-const AnforderungDetailPanel = ({ anforderung, onEdit, onClose, richtlinien = [] }) => {
+const AnforderungDetailPanel = ({ anforderung, onEdit, onClose, richtlinien = [], canEdit }) => {
   const linkedRichtlinien = richtlinien.filter(r => (r.anforderungen_ids || []).includes(anforderung.id));
   return (
     <Modal
@@ -1254,9 +1275,9 @@ const AnforderungDetailPanel = ({ anforderung, onEdit, onClose, richtlinien = []
       footer={
         <>
           <button onClick={onClose} className="btn btn-ghost">Schließen</button>
-          <button onClick={onEdit} className="btn btn-primary">
+          {canEdit && <button onClick={onEdit} className="btn btn-primary">
             <Icon name="edit" cls="w-3.5 h-3.5"/> Bearbeiten
-          </button>
+          </button>}
         </>
       }
     >
@@ -1311,7 +1332,7 @@ const AnforderungDetailPanel = ({ anforderung, onEdit, onClose, richtlinien = []
 };
 
 // ── List view ──────────────────────────────────────────────────────────────
-const AnforderungenView = ({ anforderungen, onCreate, onView, onEdit, onDelete, config }) => {
+const AnforderungenView = ({ anforderungen, onCreate, onView, onEdit, onDelete, config, canEdit, canDelete }) => {
   const kategorien = config?.anfKategorien || DEFAULT_KATEGORIEN;
   const [search, setSearch] = useState('');
   const [kategorieFilter, setKategorieFilter] = useState('alle');
@@ -1337,9 +1358,9 @@ const AnforderungenView = ({ anforderungen, onCreate, onView, onEdit, onDelete, 
             Compliance-Anforderungen erfassen und verwalten.
           </p>
         </div>
-        <button onClick={onCreate} className="btn btn-primary">
+        {canEdit && <button onClick={onCreate} className="btn btn-primary">
           <Icon name="plus" cls="w-3.5 h-3.5"/> Neue Anforderung
-        </button>
+        </button>}
       </div>
 
       {/* Stats strip */}
@@ -1379,7 +1400,7 @@ const AnforderungenView = ({ anforderungen, onCreate, onView, onEdit, onDelete, 
       {/* Table */}
       <div className="card overflow-x-auto shadow-soft">
         {filtered.length === 0
-          ? <EmptyState hasFilter={hasFilter} onCreate={onCreate}/>
+          ? <EmptyState hasFilter={hasFilter} onCreate={onCreate} canEdit={canEdit}/>
           : <table className="data-table" style={{ minWidth: '700px' }}>
               <thead>
                 <tr>
@@ -1400,16 +1421,16 @@ const AnforderungenView = ({ anforderungen, onCreate, onView, onEdit, onDelete, 
                       <p className="text-[12.5px] text-ink-700 leading-snug">{a.kategorie}</p>
                       {a.unterkategorie && <p className="text-[11px] text-ink-400 mt-0.5 leading-snug truncate" style={{ maxWidth: '200px' }}>{a.unterkategorie}</p>}
                     </td>
-                    <td onClick={e => e.stopPropagation()}>
+                    {(canEdit || canDelete) && <td onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-0.5 justify-end">
-                        <button onClick={() => onEdit(a)} className="p-1.5 rounded-md text-ink-400 hover:text-ink-900 hover:bg-ink-50 transition-colors" title="Bearbeiten">
+                        {canEdit && <button onClick={() => onEdit(a)} className="p-1.5 rounded-md text-ink-400 hover:text-ink-900 hover:bg-ink-50 transition-colors" title="Bearbeiten">
                           <Icon name="edit" cls="w-3.5 h-3.5"/>
-                        </button>
-                        <button onClick={() => onDelete(a.id)} className="p-1.5 rounded-md text-ink-400 hover:text-[#a13d36] hover:bg-rose-50 transition-colors" title="Löschen">
+                        </button>}
+                        {canDelete && <button onClick={() => onDelete(a.id)} className="p-1.5 rounded-md text-ink-400 hover:text-[#a13d36] hover:bg-rose-50 transition-colors" title="Löschen">
                           <Icon name="trash" cls="w-3.5 h-3.5"/>
-                        </button>
+                        </button>}
                       </div>
-                    </td>
+                    </td>}
                   </tr>
                 ))}
               </tbody>
@@ -1456,7 +1477,7 @@ const StatCard = ({ label, value, accent, icon }) => {
 };
 
 // ── Empty state ────────────────────────────────────────────────────────────
-const EmptyState = ({ hasFilter, onCreate }) => (
+const EmptyState = ({ hasFilter, onCreate, canEdit }) => (
   <div className="px-12 py-20 text-center">
     <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-ink-50 flex items-center justify-center text-ink-300">
       <Icon name={hasFilter ? 'search' : 'list'} cls="w-5 h-5"/>
@@ -1467,7 +1488,7 @@ const EmptyState = ({ hasFilter, onCreate }) => (
     <p className="text-[13px] text-ink-400 mb-5">
       {hasFilter ? 'Passe die Filter an oder setze sie zurück.' : 'Lege deine erste Sicherheits- oder Compliance-Anforderung an.'}
     </p>
-    {!hasFilter && (
+    {!hasFilter && canEdit && (
       <button onClick={onCreate} className="btn btn-primary">
         <Icon name="plus" cls="w-3.5 h-3.5"/> Neue Anforderung
       </button>
@@ -1675,7 +1696,7 @@ const RichtlinieForm = ({ initial, onSave, onClose, anforderungen, config }) => 
 };
 
 // ── RichtlinieDetailPanel ──────────────────────────────────────────────────
-const RichtlinieDetailPanel = ({ richtlinie, onEdit, onClose, anforderungen }) => {
+const RichtlinieDetailPanel = ({ richtlinie, onEdit, onClose, anforderungen, canEdit }) => {
   const linkedAnf = anforderungen.filter(a => (richtlinie.anforderungen_ids || []).includes(a.id));
 
   const downloadPdf = () => {
@@ -1690,9 +1711,9 @@ const RichtlinieDetailPanel = ({ richtlinie, onEdit, onClose, anforderungen }) =
       footer={
         <>
           <button onClick={onClose} className="btn btn-ghost">Schließen</button>
-          <button onClick={onEdit} className="btn btn-primary">
+          {canEdit && <button onClick={onEdit} className="btn btn-primary">
             <Icon name="edit" cls="w-3.5 h-3.5"/> Bearbeiten
-          </button>
+          </button>}
         </>
       }>
       <div className="space-y-6">
@@ -1781,7 +1802,7 @@ const RichtlinieDetailPanel = ({ richtlinie, onEdit, onClose, anforderungen }) =
 };
 
 // ── RichtlinienView ───────────────────────────────────────────────────────
-const RichtlinienView = ({ richtlinien, onCreate, onView, onEdit, onDelete, config }) => {
+const RichtlinienView = ({ richtlinien, onCreate, onView, onEdit, onDelete, config, canEdit, canDelete }) => {
   const rlKategorien = config?.rlKategorien || DEFAULT_CONFIG.richtlinien.kategorien;
   const rlArt        = config?.rlArt        || DEFAULT_CONFIG.richtlinien.art;
   const [search, setSearch] = useState('');
@@ -1812,9 +1833,9 @@ const RichtlinienView = ({ richtlinien, onCreate, onView, onEdit, onDelete, conf
           <h1 className="text-[28px] font-medium text-ink-900 tracking-tight leading-none">Richtlinien</h1>
           <p className="text-[13px] text-ink-400 mt-2">Strategien, Richtlinien, Leitlinien und Verfahrensanweisungen verwalten.</p>
         </div>
-        <button onClick={onCreate} className="btn btn-primary">
+        {canEdit && <button onClick={onCreate} className="btn btn-primary">
           <Icon name="plus" cls="w-3.5 h-3.5"/> Neue Richtlinie
-        </button>
+        </button>}
       </div>
 
       {/* Stats */}
@@ -1869,7 +1890,7 @@ const RichtlinienView = ({ richtlinien, onCreate, onView, onEdit, onDelete, conf
             </div>
             <p className="text-[15px] font-medium text-ink-900 mb-1">{hasFilter ? 'Keine Treffer' : 'Noch keine Richtlinien'}</p>
             <p className="text-[13px] text-ink-400 mb-5">{hasFilter ? 'Passe die Filter an oder setze sie zurück.' : 'Erstelle deine erste Richtlinie.'}</p>
-            {!hasFilter && <button onClick={onCreate} className="btn btn-primary"><Icon name="plus" cls="w-3.5 h-3.5"/> Neue Richtlinie</button>}
+            {!hasFilter && canEdit && <button onClick={onCreate} className="btn btn-primary"><Icon name="plus" cls="w-3.5 h-3.5"/> Neue Richtlinie</button>}
           </div>
         ) : (
           <table className="data-table" style={{ minWidth: '900px' }}>
@@ -1908,16 +1929,16 @@ const RichtlinienView = ({ richtlinien, onCreate, onView, onEdit, onDelete, conf
                   <td><p className="text-[12.5px] text-ink-700">{r.kategorie}</p></td>
                   <td><span className="tag">{r.art}</span></td>
                   <td><VertraulichkeitBadge id={r.vertraulichkeit}/></td>
-                  <td onClick={e => e.stopPropagation()}>
+                  {(canEdit || canDelete) && <td onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-0.5 justify-end">
-                      <button onClick={() => onEdit(r)} className="p-1.5 rounded-md text-ink-400 hover:text-ink-900 hover:bg-ink-50 transition-colors" title="Bearbeiten">
+                      {canEdit && <button onClick={() => onEdit(r)} className="p-1.5 rounded-md text-ink-400 hover:text-ink-900 hover:bg-ink-50 transition-colors" title="Bearbeiten">
                         <Icon name="edit" cls="w-3.5 h-3.5"/>
-                      </button>
-                      <button onClick={() => onDelete(r.id)} className="p-1.5 rounded-md text-ink-400 hover:text-[#a13d36] hover:bg-rose-50 transition-colors" title="Löschen">
+                      </button>}
+                      {canDelete && <button onClick={() => onDelete(r.id)} className="p-1.5 rounded-md text-ink-400 hover:text-[#a13d36] hover:bg-rose-50 transition-colors" title="Löschen">
                         <Icon name="trash" cls="w-3.5 h-3.5"/>
-                      </button>
+                      </button>}
                     </div>
-                  </td>
+                  </td>}
                 </tr>
               ))}
             </tbody>
@@ -1928,17 +1949,264 @@ const RichtlinienView = ({ richtlinien, onCreate, onView, onEdit, onDelete, conf
   );
 };
 
+// ── LoginScreen ────────────────────────────────────────────────────────────
+const SetupScreen = ({ onCreate }) => {
+  const [name, setName] = useState('');
+  const [pin, setPin]   = useState('');
+  const [pin2, setPin2] = useState('');
+  const [err, setErr]   = useState('');
+  const handle = async () => {
+    if (!name.trim()) return setErr('Bitte einen Namen eingeben.');
+    if (pin.length < 4) return setErr('PIN muss mindestens 4 Zeichen haben.');
+    if (pin !== pin2) return setErr('PINs stimmen nicht überein.');
+    const hashed = await hashPin(pin);
+    onCreate({ id: uuid(), name: name.trim(), role: 'admin', pin: hashed });
+  };
+  return (
+    <div className="min-h-screen bg-[#eef3f7] flex items-center justify-center p-6">
+      <div className="card shadow-soft w-full max-w-sm p-8 space-y-6">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-brand-600 flex items-center justify-center">
+            <Icon name="shield" cls="w-6 h-6 text-white"/>
+          </div>
+          <div className="text-center">
+            <h1 className="text-[20px] font-semibold text-ink-900">Ersteinrichtung</h1>
+            <p className="text-[13px] text-ink-400 mt-1">Lege den ersten Admin-Benutzer an.</p>
+          </div>
+        </div>
+        <div className="space-y-3">
+          <Field label="Name"><input className="field" value={name} onChange={e => setName(e.target.value)} placeholder="Dein Name"/></Field>
+          <Field label="PIN"><input className="field" type="password" value={pin} onChange={e => setPin(e.target.value)} placeholder="Mindestens 4 Zeichen"/></Field>
+          <Field label="PIN bestätigen"><input className="field" type="password" value={pin2} onChange={e => setPin2(e.target.value)} placeholder="PIN wiederholen"/></Field>
+          {err && <p className="text-[12px] text-[#a13d36]">{err}</p>}
+        </div>
+        <button onClick={handle} className="btn btn-primary w-full justify-center">Admin-Konto erstellen</button>
+      </div>
+    </div>
+  );
+};
+
+const LoginScreen = ({ users, onLogin, onFirstSetup }) => {
+  const [selected, setSelected] = useState(null);
+  const [pin, setPin]           = useState('');
+  const [err, setErr]           = useState('');
+
+  if (!users || users.length === 0) return <SetupScreen onCreate={onFirstSetup}/>;
+
+  const handleLogin = async () => {
+    const hashed = await hashPin(pin);
+    if (hashed === selected.pin) {
+      onLogin({ id: selected.id, name: selected.name, role: selected.role });
+    } else {
+      setErr('Falsche PIN. Bitte erneut versuchen.');
+      setPin('');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#eef3f7] flex items-center justify-center p-6">
+      <div className="card shadow-soft w-full max-w-sm p-8 space-y-6">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-brand-600 flex items-center justify-center">
+            <Icon name="shield" cls="w-6 h-6 text-white"/>
+          </div>
+          <div className="text-center">
+            <h1 className="text-[20px] font-semibold text-ink-900">Compliance-Management</h1>
+            <p className="text-[13px] text-ink-400 mt-1">{selected ? 'PIN eingeben' : 'Wer bist du?'}</p>
+          </div>
+        </div>
+        {!selected ? (
+          <div className="space-y-2">
+            {users.map(u => (
+              <button key={u.id} onClick={() => { setSelected(u); setPin(''); setErr(''); }}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-line bg-white hover:border-brand-400 hover:bg-brand-50 transition-colors text-left">
+                <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 text-[13px] font-semibold flex-shrink-0">
+                  {u.name.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13.5px] font-medium text-ink-900">{u.name}</p>
+                </div>
+                <span className={`text-[11px] font-medium px-2 py-0.5 rounded border ${ROLE_COLORS[u.role]}`}>{ROLE_LABELS[u.role]}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <button onClick={() => { setSelected(null); setPin(''); setErr(''); }}
+              className="flex items-center gap-2 text-[12.5px] text-ink-400 hover:text-ink-700 transition-colors">
+              <Icon name="chevron-left" cls="w-3.5 h-3.5"/> Zurück
+            </button>
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-ink-50 border border-line">
+              <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 text-[13px] font-semibold">
+                {selected.name.charAt(0).toUpperCase()}
+              </div>
+              <p className="text-[13.5px] font-medium text-ink-900">{selected.name}</p>
+            </div>
+            <Field label="PIN">
+              <input className="field" type="password" value={pin} autoFocus
+                onChange={e => { setPin(e.target.value); setErr(''); }}
+                onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                placeholder="PIN eingeben"/>
+            </Field>
+            {err && <p className="text-[12px] text-[#a13d36]">{err}</p>}
+            <button onClick={handleLogin} className="btn btn-primary w-full justify-center">Anmelden</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── StartseiteView ──────────────────────────────────────────────────────────
+const StartseiteView = ({ session, data, onEditWelcome, isAdmin }) => {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft]     = useState('');
+  const welcomeText = data?.config?.welcomeText || '';
+  const anf = data?.anforderungen || [];
+  const rl  = data?.richtlinien  || [];
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-[32px] font-medium text-ink-900 tracking-tight leading-none">
+          Hallo, {session.name}!
+        </h1>
+        {editing ? (
+          <div className="mt-4 space-y-2">
+            <textarea className="field w-full" rows={3} value={draft}
+              onChange={e => setDraft(e.target.value)}
+              placeholder="Willkommenstext eingeben…"/>
+            <div className="flex gap-2">
+              <button onClick={() => { onEditWelcome(draft); setEditing(false); }} className="btn btn-primary">Speichern</button>
+              <button onClick={() => setEditing(false)} className="btn btn-ghost">Abbrechen</button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-3 flex items-start gap-3">
+            {welcomeText
+              ? <p className="text-[15px] text-ink-500 leading-relaxed flex-1">{welcomeText}</p>
+              : <p className="text-[14px] text-ink-300 italic flex-1">Noch kein Willkommenstext konfiguriert.</p>
+            }
+            {isAdmin && <button onClick={() => { setDraft(welcomeText); setEditing(true); }}
+              className="p-1.5 rounded-md text-ink-300 hover:text-ink-700 hover:bg-ink-100 transition-colors flex-shrink-0">
+              <Icon name="edit" cls="w-3.5 h-3.5"/>
+            </button>}
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <StatCard label="Anforderungen" value={anf.length} accent="petrol" icon="list"/>
+        <StatCard label="Richtlinien"   value={rl.length}  accent="black"  icon="book"/>
+      </div>
+    </div>
+  );
+};
+
+// ── BenutzerView ────────────────────────────────────────────────────────────
+const BenutzerForm = ({ initial, onSave, onClose, currentUserId }) => {
+  const isEdit = !!initial?.id;
+  const [name, setName]   = useState(initial?.name || '');
+  const [role, setRole]   = useState(initial?.role || 'leser');
+  const [pin, setPin]     = useState('');
+  const [pin2, setPin2]   = useState('');
+  const [err, setErr]     = useState('');
+
+  const handle = async () => {
+    if (!name.trim()) return setErr('Bitte einen Namen eingeben.');
+    if (!isEdit || pin) {
+      if (pin.length < 4) return setErr('PIN muss mindestens 4 Zeichen haben.');
+      if (pin !== pin2)   return setErr('PINs stimmen nicht überein.');
+    }
+    const hashed = pin ? await hashPin(pin) : initial.pin;
+    onSave({ ...(initial || {}), id: initial?.id || uuid(), name: name.trim(), role, pin: hashed });
+  };
+
+  return (
+    <Modal title={isEdit ? 'Benutzer bearbeiten' : 'Neuer Benutzer'} onClose={onClose}
+      footer={<><button onClick={onClose} className="btn btn-ghost">Abbrechen</button><button onClick={handle} className="btn btn-primary">Speichern</button></>}>
+      <div className="space-y-4">
+        <Field label="Name" required><input className="field" value={name} onChange={e => setName(e.target.value)} placeholder="Vollständiger Name"/></Field>
+        <Field label="Rolle">
+          <div className="flex gap-2">
+            {['leser','schreiber','admin'].map(r => (
+              <label key={r} onClick={() => setRole(r)}
+                className={`flex-1 text-center px-3 py-2 rounded-lg border cursor-pointer text-[12.5px] font-medium transition-colors ${role === r ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-line text-ink-500 hover:border-line-strong'}`}>
+                {ROLE_LABELS[r]}
+              </label>
+            ))}
+          </div>
+          <p className="text-[11.5px] text-ink-400 mt-1.5">
+            {role === 'leser' ? 'Kann nur lesen, nichts bearbeiten.' : role === 'schreiber' ? 'Kann anlegen und bearbeiten, aber nicht löschen.' : 'Voller Zugriff inkl. Löschen und Einstellungen.'}
+          </p>
+        </Field>
+        <Field label={isEdit ? 'Neue PIN (leer lassen = unverändert)' : 'PIN'} required={!isEdit}>
+          <input className="field" type="password" value={pin} onChange={e => setPin(e.target.value)} placeholder={isEdit ? 'Nur ausfüllen zum Ändern' : 'Mindestens 4 Zeichen'}/>
+        </Field>
+        {(!isEdit || pin) && (
+          <Field label="PIN bestätigen" required>
+            <input className="field" type="password" value={pin2} onChange={e => setPin2(e.target.value)} placeholder="PIN wiederholen"/>
+          </Field>
+        )}
+        {err && <p className="text-[12px] text-[#a13d36]">{err}</p>}
+      </div>
+    </Modal>
+  );
+};
+
+const BenutzerView = ({ users, session, onCreate, onEdit, onDelete }) => (
+  <div className="space-y-6">
+    <div className="flex items-end justify-between gap-6">
+      <div>
+        <h1 className="text-[28px] font-medium text-ink-900 tracking-tight leading-none">Benutzerverwaltung</h1>
+        <p className="text-[13px] text-ink-400 mt-2">Benutzer und Zugriffsrechte verwalten.</p>
+      </div>
+      <button onClick={onCreate} className="btn btn-primary"><Icon name="plus" cls="w-3.5 h-3.5"/> Neuer Benutzer</button>
+    </div>
+    <div className="card shadow-soft overflow-hidden">
+      <table className="data-table">
+        <thead><tr><th>Name</th><th>Rolle</th><th></th></tr></thead>
+        <tbody>
+          {users.map(u => (
+            <tr key={u.id}>
+              <td>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 text-[12px] font-semibold flex-shrink-0">
+                    {u.name.charAt(0).toUpperCase()}
+                  </div>
+                  <p className="text-[13.5px] font-medium text-ink-900">{u.name}{u.id === session.id && <span className="ml-2 text-[11px] text-ink-400">(ich)</span>}</p>
+                </div>
+              </td>
+              <td><span className={`text-[11.5px] font-medium px-2 py-0.5 rounded border ${ROLE_COLORS[u.role]}`}>{ROLE_LABELS[u.role]}</span></td>
+              <td onClick={e => e.stopPropagation()}>
+                <div className="flex items-center gap-0.5 justify-end">
+                  <button onClick={() => onEdit(u)} className="p-1.5 rounded-md text-ink-400 hover:text-ink-900 hover:bg-ink-50 transition-colors" title="Bearbeiten"><Icon name="edit" cls="w-3.5 h-3.5"/></button>
+                  {u.id !== session.id && <button onClick={() => onDelete(u.id)} className="p-1.5 rounded-md text-ink-400 hover:text-[#a13d36] hover:bg-rose-50 transition-colors" title="Löschen"><Icon name="trash" cls="w-3.5 h-3.5"/></button>}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+);
+
 // ── App ────────────────────────────────────────────────────────────────────
 const App = () => {
   const [data, setData] = useState(() => loadData() || SEED);
-  const [view, setView] = useState('anforderungen'); // 'anforderungen' | 'richtlinien'
+  const [session, setSession] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem(SESSION_KEY)); } catch { return null; }
+  });
+  const [view, setView] = useState('start');
   const [showSettings, setShowSettings] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [anforderungModal, setAnforderungModal] = useState(null);
   const [anforderungDetail, setAnforderungDetail] = useState(null);
   const [richtlinieModal, setRichtlinieModal] = useState(null);
   const [richtlinieDetail, setRichtlinieDetail] = useState(null);
-  const [syncStatus, setSyncStatus] = useState('idle'); // 'idle'|'syncing'|'synced'|'error'
+  const [benutzerModal, setBenutzerModal] = useState(null);
+  const [syncStatus, setSyncStatus] = useState('idle');
   const gistLoadedRef = useRef(false);
   const saveTimerRef  = useRef(null);
 
@@ -1976,6 +2244,21 @@ const App = () => {
     }, 1500);
   }, [data]);
 
+  const handleLogin = (sess) => {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(sess));
+    setSession(sess);
+    setView('start');
+  };
+  const handleLogout = () => {
+    sessionStorage.removeItem(SESSION_KEY);
+    setSession(null);
+  };
+  const handleFirstSetup = (user) => {
+    const newData = { ...data, users: [user] };
+    setData(newData);
+    handleLogin({ id: user.id, name: user.name, role: user.role });
+  };
+
   const handleConnectGist = async (token) => {
     localStorage.setItem(GIST_TOKEN_KEY, token);
     localStorage.removeItem(GIST_ID_KEY);
@@ -1984,12 +2267,30 @@ const App = () => {
     await saveToGist(token, gistId, data);
     setSyncStatus('synced');
   };
-
   const handleDisconnectGist = () => {
     if (!confirm('Cloud-Sync trennen? Daten bleiben lokal erhalten.')) return;
     localStorage.removeItem(GIST_TOKEN_KEY);
     localStorage.removeItem(GIST_ID_KEY);
     setSyncStatus('idle');
+  };
+
+  // ── Benutzer CRUD ──
+  const createBenutzer = (form) => {
+    setData(d => ({ ...d, users: [...(d.users || []), form] }));
+    setBenutzerModal(null);
+  };
+  const updateBenutzer = (form) => {
+    setData(d => ({ ...d, users: (d.users || []).map(u => u.id === form.id ? form : u) }));
+    if (session?.id === form.id) {
+      const updated = { id: form.id, name: form.name, role: form.role };
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(updated));
+      setSession(updated);
+    }
+    setBenutzerModal(null);
+  };
+  const deleteBenutzer = (id) => {
+    if (!confirm('Benutzer wirklich löschen?')) return;
+    setData(d => ({ ...d, users: (d.users || []).filter(u => u.id !== id) }));
   };
 
   // ── Anforderungen CRUD ──
@@ -2027,16 +2328,31 @@ const App = () => {
     setData(d => ({ ...d, richtlinien: (d.richtlinien || []).filter(r => r.id !== id) }));
   };
 
-  const anf = data.anforderungen || [];
-  const rl  = data.richtlinien  || [];
-  const cfg = getConfig(data);
+  const handleConfigChange  = (newConfig) => setData(d => ({ ...d, config: newConfig }));
+  const handleWelcomeChange = (text) => setData(d => ({ ...d, config: { ...(d.config || DEFAULT_CONFIG), welcomeText: text } }));
 
-  const handleConfigChange = (newConfig) => setData(d => ({ ...d, config: newConfig }));
+  const anf     = data.anforderungen || [];
+  const rl      = data.richtlinien  || [];
+  const users   = data.users || [];
+  const cfg     = getConfig(data);
+  const isAdmin   = session?.role === 'admin';
+  const canEdit   = session?.role === 'schreiber' || isAdmin;
+  const canDelete = isAdmin;
 
   const navItems = [
-    { id: 'anforderungen', label: 'Anforderungen', icon: 'list',  count: anf.length },
-    { id: 'richtlinien',   label: 'Richtlinien',   icon: 'book',  count: rl.length  },
+    { id: 'start',         label: 'Start',               icon: 'home'   },
+    { id: 'anforderungen', label: 'Anforderungen',        icon: 'list',  count: anf.length },
+    { id: 'richtlinien',   label: 'Richtlinien',          icon: 'book',  count: rl.length  },
+    ...(isAdmin ? [{ id: 'benutzer', label: 'Benutzerverwaltung', icon: 'users', count: users.length }] : []),
   ];
+
+  if (!session) return (
+    <LoginScreen
+      users={users}
+      onLogin={handleLogin}
+      onFirstSetup={handleFirstSetup}
+    />
+  );
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -2065,7 +2381,7 @@ const App = () => {
         )}
 
         <nav className="flex-1 px-2 py-3 space-y-0.5">
-          {sidebarOpen && <p className="px-2 mb-1.5 text-[10px] font-medium text-ink-300 uppercase tracking-wider">Bibliothek</p>}
+          {sidebarOpen && <p className="px-2 mb-1.5 text-[10px] font-medium text-ink-300 uppercase tracking-wider">Navigation</p>}
           {navItems.map(item => (
             <button key={item.id} onClick={() => setView(item.id)}
               className={`nav-item w-full ${view === item.id ? 'active' : ''}`}>
@@ -2073,7 +2389,7 @@ const App = () => {
               {sidebarOpen && (
                 <>
                   <span className="flex-1 text-left">{item.label}</span>
-                  <span className="font-mono text-[10.5px] opacity-60">{item.count}</span>
+                  {item.count != null && <span className="font-mono text-[10.5px] opacity-60">{item.count}</span>}
                 </>
               )}
             </button>
@@ -2085,34 +2401,48 @@ const App = () => {
             <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg">
               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                 syncStatus === 'synced'  ? 'bg-[#4a8a7a]' :
-                syncStatus === 'syncing' ? 'bg-petrol-400 animate-pulse' :
-                'bg-[#b53a31]'
+                syncStatus === 'syncing' ? 'bg-petrol-400 animate-pulse' : 'bg-[#b53a31]'
               }`}/>
               <span className={`text-[11px] font-medium ${
                 syncStatus === 'synced'  ? 'text-[#2e5a4d]' :
-                syncStatus === 'syncing' ? 'text-petrol-600' :
-                'text-[#a13d36]'
-              }`}>{
-                syncStatus === 'synced'  ? 'Synchronisiert' :
-                syncStatus === 'syncing' ? 'Synchronisiere…' :
-                'Sync-Fehler'
-              }</span>
+                syncStatus === 'syncing' ? 'text-petrol-600' : 'text-[#a13d36]'
+              }`}>{syncStatus === 'synced' ? 'Synchronisiert' : syncStatus === 'syncing' ? 'Synchronisiere…' : 'Sync-Fehler'}</span>
             </div>
           )}
-          <button onClick={() => setShowSettings(true)} className="nav-item w-full">
-            <Icon name="settings" cls="w-3.5 h-3.5 flex-shrink-0"/>
-            {sidebarOpen && 'Einstellungen'}
-          </button>
+          {isAdmin && (
+            <button onClick={() => setShowSettings(true)} className="nav-item w-full">
+              <Icon name="settings" cls="w-3.5 h-3.5 flex-shrink-0"/>
+              {sidebarOpen && 'Einstellungen'}
+            </button>
+          )}
+          {sidebarOpen && (
+            <div className="flex items-center gap-2 px-2 py-2 mt-1">
+              <div className="w-6 h-6 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 text-[11px] font-semibold flex-shrink-0">
+                {session.name.charAt(0).toUpperCase()}
+              </div>
+              <span className="flex-1 text-[12px] text-ink-600 truncate">{session.name}</span>
+              <button onClick={handleLogout} className="p-1 rounded text-ink-300 hover:text-ink-700 transition-colors" title="Abmelden">
+                <Icon name="log-out" cls="w-3.5 h-3.5"/>
+              </button>
+            </div>
+          )}
+          {!sidebarOpen && (
+            <button onClick={handleLogout} className="nav-item w-full justify-center" title="Abmelden">
+              <Icon name="log-out" cls="w-3.5 h-3.5"/>
+            </button>
+          )}
         </div>
       </aside>
 
       {/* Main */}
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-[1180px] mx-auto px-10 py-10">
+          {view === 'start' && (
+            <StartseiteView session={session} data={data} onEditWelcome={handleWelcomeChange} isAdmin={isAdmin}/>
+          )}
           {view === 'anforderungen' && (
             <AnforderungenView
-              anforderungen={anf}
-              config={cfg}
+              anforderungen={anf} config={cfg} canEdit={canEdit} canDelete={canDelete}
               onCreate={() => setAnforderungModal('new')}
               onView={a => setAnforderungDetail(a)}
               onEdit={a => setAnforderungModal(a)}
@@ -2121,12 +2451,19 @@ const App = () => {
           )}
           {view === 'richtlinien' && (
             <RichtlinienView
-              richtlinien={rl}
-              config={cfg}
+              richtlinien={rl} config={cfg} canEdit={canEdit} canDelete={canDelete}
               onCreate={() => setRichtlinieModal('new')}
               onView={r => setRichtlinieDetail(r)}
               onEdit={r => setRichtlinieModal(r)}
               onDelete={deleteRichtlinie}
+            />
+          )}
+          {view === 'benutzer' && isAdmin && (
+            <BenutzerView
+              users={users} session={session}
+              onCreate={() => setBenutzerModal('new')}
+              onEdit={u => setBenutzerModal(u)}
+              onDelete={deleteBenutzer}
             />
           )}
         </div>
@@ -2138,16 +2475,14 @@ const App = () => {
           initial={anforderungModal === 'new' ? { anforderung_id: '', kategorie: Object.keys(cfg.anfKategorien)[0] || '', unterkategorie: '', beschreibung: '' } : anforderungModal}
           onSave={anforderungModal === 'new' ? createAnforderung : updateAnforderung}
           onClose={() => setAnforderungModal(null)}
-          anforderungen={anf}
-          config={cfg}
+          anforderungen={anf} config={cfg}
         />
       )}
 
       {/* Anforderung Detail */}
       {anforderungDetail && (
         <AnforderungDetailPanel
-          anforderung={anforderungDetail}
-          richtlinien={rl}
+          anforderung={anforderungDetail} richtlinien={rl} canEdit={canEdit}
           onEdit={() => { setAnforderungModal(anforderungDetail); setAnforderungDetail(null); }}
           onClose={() => setAnforderungDetail(null)}
         />
@@ -2156,28 +2491,36 @@ const App = () => {
       {/* Richtlinie Form */}
       {richtlinieModal && (
         <RichtlinieForm
-          initial={richtlinieModal === 'new' ? { richtlinie_id: '', titel: '', kategorie: Object.keys(cfg.rlKategorien)[0] || '', unterkategorie: '', art: cfg.rlArt[1] || cfg.rlArt[0] || '', vertraulichkeit: 'K2', anwender: [], rollen: [], verantwortung: '', pdf: null, anforderungen_ids: [] } : richtlinieModal}
+          initial={richtlinieModal === 'new' ? { richtlinie_id: '', titel: '', kategorie: Object.keys(cfg.rlKategorien)[0] || '', unterkategorie: '', art: cfg.rlArt[1] || cfg.rlArt[0] || '', vertraulichkeit: 'K2', anwender: [], rollen: [], pdf: null, anforderungen_ids: [] } : richtlinieModal}
           onSave={richtlinieModal === 'new' ? createRichtlinie : updateRichtlinie}
           onClose={() => setRichtlinieModal(null)}
-          anforderungen={anf}
-          config={cfg}
+          anforderungen={anf} config={cfg}
         />
       )}
 
       {/* Richtlinie Detail */}
       {richtlinieDetail && (
         <RichtlinieDetailPanel
-          richtlinie={richtlinieDetail}
-          anforderungen={anf}
+          richtlinie={richtlinieDetail} anforderungen={anf} canEdit={canEdit}
           onEdit={() => { setRichtlinieModal(richtlinieDetail); setRichtlinieDetail(null); }}
           onClose={() => setRichtlinieDetail(null)}
+        />
+      )}
+
+      {/* Benutzer Form */}
+      {benutzerModal && (
+        <BenutzerForm
+          initial={benutzerModal === 'new' ? null : benutzerModal}
+          onSave={benutzerModal === 'new' ? createBenutzer : updateBenutzer}
+          onClose={() => setBenutzerModal(null)}
+          currentUserId={session.id}
         />
       )}
 
       {showSettings && (
         <EinstellungenModal
           data={data}
-          onImport={newData => { setData({ anforderungen: newData.anforderungen || [], richtlinien: newData.richtlinien || [], config: newData.config || DEFAULT_CONFIG }); saveData(newData); setShowSettings(false); }}
+          onImport={newData => { setData({ anforderungen: newData.anforderungen || [], richtlinien: newData.richtlinien || [], users: newData.users || [], config: newData.config || DEFAULT_CONFIG }); saveData(newData); setShowSettings(false); }}
           onClose={() => setShowSettings(false)}
           syncStatus={syncStatus}
           onConnectGist={handleConnectGist}
