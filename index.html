@@ -1185,11 +1185,13 @@ const EinstellungenModal = ({ data, onImport, onClose, syncStatus, onConnectGist
       {tab === 'rl' && (
         <div className="space-y-6">
           <div>
-            <span className="lbl">Kategorien & Unterkategorien</span>
-            <p className="text-[12px] text-ink-400 mb-3">Kategorien und zugehörige Unterkategorien für Richtlinien verwalten.</p>
-            <KategorienEditor
-              kategorien={cfg.rlKategorien}
-              onChange={val => updateConfig('richtlinien.kategorien', val)}
+            <span className="lbl">Kategorien</span>
+            <p className="text-[12px] text-ink-400 mb-3">Kategorien für Richtlinien verwalten.</p>
+            <ListEditor
+              items={Object.keys(cfg.rlKategorien)}
+              placeholder="z.B. Technisch, Organisatorisch…"
+              onAdd={v => updateConfig('richtlinien.kategorien', { ...cfg.rlKategorien, [v]: [] })}
+              onRemove={v => { const u = { ...cfg.rlKategorien }; delete u[v]; updateConfig('richtlinien.kategorien', u); }}
             />
           </div>
           <div>
@@ -1546,7 +1548,7 @@ const RichtlinieForm = ({ initial, onSave, onClose, anforderungen, config }) => 
 
   const [form, setForm] = useState(() => initial || {
     richtlinie_id: '', titel: '',
-    kategorie: defaultKat, unterkategorie: '',
+    kategorie: defaultKat,
     art: rlArt[1] || rlArt[0] || '',
     vertraulichkeit: 'K2',
     anwender: [], rollen: [],
@@ -1557,7 +1559,7 @@ const RichtlinieForm = ({ initial, onSave, onClose, anforderungen, config }) => 
   const [anfKatFilter, setAnfKatFilter] = useState('alle');
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const setKategorie = (kat) => setForm(f => ({ ...f, kategorie: kat, unterkategorie: '' }));
+  const setKategorie = (kat) => setForm(f => ({ ...f, kategorie: kat }));
   const toggleList = (key, val) => setForm(f => ({
     ...f, [key]: (f[key] || []).includes(val) ? (f[key] || []).filter(x => x !== val) : [...(f[key] || []), val],
   }));
@@ -1597,17 +1599,11 @@ const RichtlinieForm = ({ initial, onSave, onClose, anforderungen, config }) => 
           </Field>
         </div>
 
-        {/* Kategorie + Unterkategorie + Art */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Kategorie + Art */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Kategorie">
             <select className="field" value={form.kategorie} onChange={e => setKategorie(e.target.value)}>
               {Object.keys(rlKategorien).map(k => <option key={k}>{k}</option>)}
-            </select>
-          </Field>
-          <Field label="Unterkategorie">
-            <select className="field" value={form.unterkategorie || ''} onChange={e => set('unterkategorie', e.target.value)}>
-              <option value="">— Bitte wählen —</option>
-              {(rlKategorien[form.kategorie] || []).map(u => <option key={u}>{u}</option>)}
             </select>
           </Field>
           <Field label="Art">
@@ -2641,7 +2637,7 @@ const App = () => {
       {/* Richtlinie Form */}
       {richtlinieModal && (
         <RichtlinieForm
-          initial={richtlinieModal === 'new' ? { richtlinie_id: '', titel: '', kategorie: Object.keys(cfg.rlKategorien)[0] || '', unterkategorie: '', art: cfg.rlArt[1] || cfg.rlArt[0] || '', vertraulichkeit: 'K2', anwender: [], rollen: [], pdf: null, anforderungen_ids: [] } : richtlinieModal}
+          initial={richtlinieModal === 'new' ? { richtlinie_id: '', titel: '', kategorie: Object.keys(cfg.rlKategorien)[0] || '', art: cfg.rlArt[1] || cfg.rlArt[0] || '', vertraulichkeit: 'K2', anwender: [], rollen: [], pdf: null, anforderungen_ids: [] } : richtlinieModal}
           onSave={richtlinieModal === 'new' ? createRichtlinie : updateRichtlinie}
           onClose={() => setRichtlinieModal(null)}
           anforderungen={anf} config={cfg}
