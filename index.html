@@ -1007,9 +1007,10 @@ const SubInput = ({ onAdd }) => {
 };
 
 // ── Einstellungen Modal ────────────────────────────────────────────────────
-const EinstellungenModal = ({ data, onImport, onClose, syncStatus, onConnectGist, onDisconnectGist, onConfigChange }) => {
+const EinstellungenModal = ({ data, onImport, onClose, syncStatus, onConnectGist, onDisconnectGist, onConfigChange, users, session, onCreateBenutzer, onUpdateBenutzer, onDeleteBenutzer }) => {
   const fileRef = useRef();
-  const [tab, setTab] = useState('sync');
+  const [tab, setTab] = useState('benutzer');
+  const [benutzerModal, setBenutzerModal] = useState(null);
   const [tokenInput, setTokenInput] = useState('');
   const [connecting, setConnecting] = useState(false);
   const hasToken = !!localStorage.getItem(GIST_TOKEN_KEY);
@@ -1069,9 +1070,10 @@ const EinstellungenModal = ({ data, onImport, onClose, syncStatus, onConnectGist
   }[syncStatus] || { text: '—', cls: 'text-ink-400' };
 
   const TABS = [
-    { id: 'sync',   label: 'Sync & Backup' },
-    { id: 'anf',    label: 'Anforderungen' },
-    { id: 'rl',     label: 'Richtlinien'   },
+    { id: 'benutzer', label: 'Benutzer'      },
+    { id: 'sync',     label: 'Sync & Backup' },
+    { id: 'anf',      label: 'Anforderungen' },
+    { id: 'rl',       label: 'Richtlinien'   },
   ];
 
   return (
@@ -1085,6 +1087,51 @@ const EinstellungenModal = ({ data, onImport, onClose, syncStatus, onConnectGist
           </button>
         ))}
       </div>
+
+      {tab === 'benutzer' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-[13px] text-ink-400">Benutzer und Zugriffsrechte verwalten.</p>
+            <button onClick={() => setBenutzerModal('new')} className="btn btn-primary btn-sm flex-shrink-0">
+              <Icon name="plus" cls="w-3.5 h-3.5"/> Neuer Benutzer
+            </button>
+          </div>
+          <div className="card shadow-soft overflow-hidden">
+            <table className="data-table">
+              <thead><tr><th>Name</th><th>Rolle</th><th></th></tr></thead>
+              <tbody>
+                {(users || []).map(u => (
+                  <tr key={u.id}>
+                    <td>
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 text-[12px] font-semibold flex-shrink-0">
+                          {u.name.charAt(0).toUpperCase()}
+                        </div>
+                        <p className="text-[13.5px] font-medium text-ink-900">{u.name}{u.id === session?.id && <span className="ml-2 text-[11px] text-ink-400">(ich)</span>}</p>
+                      </div>
+                    </td>
+                    <td><span className={`text-[11.5px] font-medium px-2 py-0.5 rounded border ${ROLE_COLORS[u.role]}`}>{ROLE_LABELS[u.role]}</span></td>
+                    <td onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center gap-0.5 justify-end">
+                        <button onClick={() => setBenutzerModal(u)} className="p-1.5 rounded-md text-ink-400 hover:text-ink-900 hover:bg-ink-50 transition-colors" title="Bearbeiten"><Icon name="edit" cls="w-3.5 h-3.5"/></button>
+                        {u.id !== session?.id && <button onClick={() => onDeleteBenutzer(u.id)} className="p-1.5 rounded-md text-ink-400 hover:text-[#a13d36] hover:bg-rose-50 transition-colors" title="Löschen"><Icon name="trash" cls="w-3.5 h-3.5"/></button>}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {benutzerModal && (
+            <BenutzerForm
+              initial={benutzerModal === 'new' ? null : benutzerModal}
+              onSave={f => { benutzerModal === 'new' ? onCreateBenutzer(f) : onUpdateBenutzer(f); setBenutzerModal(null); }}
+              onClose={() => setBenutzerModal(null)}
+              currentUserId={session?.id}
+            />
+          )}
+        </div>
+      )}
 
       {tab === 'sync' && (
         <div className="space-y-6">
@@ -2318,7 +2365,6 @@ const App = () => {
   const [anforderungDetail, setAnforderungDetail] = useState(null);
   const [richtlinieModal, setRichtlinieModal] = useState(null);
   const [richtlinieDetail, setRichtlinieDetail] = useState(null);
-  const [benutzerModal, setBenutzerModal] = useState(null);
   const [syncStatus, setSyncStatus] = useState('idle');
   const gistLoadedRef = useRef(false);
   const saveTimerRef  = useRef(null);
@@ -2398,7 +2444,6 @@ const App = () => {
   // ── Benutzer CRUD ──
   const createBenutzer = (form) => {
     setData(d => ({ ...d, users: [...(d.users || []), form] }));
-    setBenutzerModal(null);
   };
   const updateBenutzer = (form) => {
     setData(d => ({ ...d, users: (d.users || []).map(u => u.id === form.id ? form : u) }));
@@ -2407,7 +2452,6 @@ const App = () => {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(updated));
       setSession(updated);
     }
-    setBenutzerModal(null);
   };
   const deleteBenutzer = (id) => {
     if (!confirm('Benutzer wirklich löschen?')) return;
@@ -2464,7 +2508,6 @@ const App = () => {
     { id: 'start',         label: 'Start',               icon: 'home'   },
     { id: 'anforderungen', label: 'Anforderungen',        icon: 'list',  count: anf.length },
     { id: 'richtlinien',   label: 'Richtlinien',          icon: 'book',  count: rl.length  },
-    ...(isAdmin ? [{ id: 'benutzer', label: 'Benutzerverwaltung', icon: 'users', count: users.length }] : []),
   ];
 
   if (!session) return (
@@ -2611,14 +2654,6 @@ const App = () => {
               onDelete={deleteRichtlinie}
             />
           )}
-          {view === 'benutzer' && isAdmin && (
-            <BenutzerView
-              users={users} session={session}
-              onCreate={() => setBenutzerModal('new')}
-              onEdit={u => setBenutzerModal(u)}
-              onDelete={deleteBenutzer}
-            />
-          )}
         </div>
       </main>
 
@@ -2660,16 +2695,6 @@ const App = () => {
         />
       )}
 
-      {/* Benutzer Form */}
-      {benutzerModal && (
-        <BenutzerForm
-          initial={benutzerModal === 'new' ? null : benutzerModal}
-          onSave={benutzerModal === 'new' ? createBenutzer : updateBenutzer}
-          onClose={() => setBenutzerModal(null)}
-          currentUserId={session.id}
-        />
-      )}
-
       {showSettings && (
         <EinstellungenModal
           data={data}
@@ -2679,6 +2704,11 @@ const App = () => {
           onConnectGist={handleConnectGist}
           onDisconnectGist={handleDisconnectGist}
           onConfigChange={handleConfigChange}
+          users={users}
+          session={session}
+          onCreateBenutzer={createBenutzer}
+          onUpdateBenutzer={updateBenutzer}
+          onDeleteBenutzer={deleteBenutzer}
         />
       )}
     </div>
