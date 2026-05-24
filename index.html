@@ -34,15 +34,15 @@ tailwind.config = {
           900: '#0a1828',
         },
         brand: {
-          50:  '#f3f4f6',
-          100: '#e5e7eb',
-          200: '#d1d5db',
-          400: '#6b7280',
-          500: '#4b5563',
-          600: '#374151',
-          700: '#1f2937',
-          800: '#111827',
-          900: '#0d1117',
+          50:  '#eaf0f5',
+          100: '#cdd9e3',
+          200: '#9bb3c5',
+          400: '#3e5b78',
+          500: '#1c3955',
+          600: '#0A2845',
+          700: '#061b30',
+          800: '#04111f',
+          900: '#020a13',
         },
         petrol: {
           50:  '#e6f5f6',
@@ -79,9 +79,9 @@ tailwind.config = {
     --ink-500: #445463;
     --ink-400: #6a7c89;
     --ink-300: #9aaab6;
-    --brand: #374151;
-    --brand-700: #1f2937;
-    --brand-500: #4b5563;
+    --brand: #0A2845;
+    --brand-700: #061b30;
+    --brand-500: #1c3955;
     --petrol: #0096A0;
     --petrol-600: #007a83;
     --petrol-50: #e6f5f6;
@@ -304,7 +304,7 @@ tailwind.config = {
     cursor: pointer; transition: all .14s;
     letter-spacing: -0.005em;
   }
-  .nav-item:hover { background: #dedede; color: var(--ink-900); }
+  .nav-item:hover { background: #e7edf2; color: var(--ink-900); }
   .nav-item.active { background: var(--brand); color: #ffffff; }
   .nav-item.active:hover { background: var(--brand-500); }
 
@@ -2484,8 +2484,8 @@ const App = () => {
       {/* Sidebar */}
       <aside className={`sidebar-transition fixed lg:static top-0 left-0 h-full z-40 lg:z-auto flex-shrink-0
         ${sidebarOpen ? 'w-[220px] translate-x-0' : '-translate-x-full lg:translate-x-0 lg:w-[56px]'}
-        bg-[#ebebeb] border-r border-[#d8d8d8] flex flex-col`}>
-        <div className="flex items-center gap-2.5 px-3.5 h-[60px] border-b border-[#d8d8d8]">
+        bg-[#eef3f7] border-r border-line flex flex-col`}>
+        <div className="flex items-center gap-2.5 px-3.5 h-[60px] border-b border-line">
           <div className="w-7 h-7 rounded-[7px] bg-brand-600 flex items-center justify-center flex-shrink-0 text-white">
             <Icon name="shield" cls="w-3.5 h-3.5"/>
           </div>
@@ -2523,7 +2523,7 @@ const App = () => {
           ))}
         </nav>
 
-        <div className="px-2 py-3 border-t border-[#d8d8d8] space-y-0.5">
+        <div className="px-2 py-3 border-t border-line space-y-0.5">
           {sidebarOpen && (
             <div className="flex items-center gap-1.5 px-2 py-1 mb-1">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0"/>
@@ -2570,7 +2570,7 @@ const App = () => {
       {/* Main */}
       <main className="flex-1 overflow-y-auto min-w-0">
         {/* Mobile top bar */}
-        <div className="lg:hidden sticky top-0 z-20 h-14 bg-[#ebebeb] border-b border-[#d8d8d8] flex items-center px-4 gap-3">
+        <div className="lg:hidden sticky top-0 z-20 h-14 bg-[#eef3f7] border-b border-line flex items-center px-4 gap-3">
           <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-md text-ink-500 hover:text-ink-900 hover:bg-ink-100 transition-colors flex-shrink-0">
             <Icon name="sidebar" cls="w-4 h-4"/>
           </button>
