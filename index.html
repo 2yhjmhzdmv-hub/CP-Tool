@@ -2316,6 +2316,7 @@ const App = () => {
   };
   const handleFirstSetup = (user) => {
     const newData = { ...data, users: [user] };
+    saveData(newData);
     setData(newData);
     handleLogin({ id: user.id, name: user.name, role: user.role });
   };
