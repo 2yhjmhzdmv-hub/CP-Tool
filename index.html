@@ -1158,7 +1158,7 @@ const EinstellungenModal = ({ data, onImport, onClose, syncStatus, onConnectGist
               onRemove={v => updateConfig('richtlinien.anwender', cfg.rlAnwender.filter(x => x !== v))}/>
           </div>
           <div>
-            <span className="lbl">Rollen</span>
+            <span className="lbl">Verantwortung</span>
             <ListEditor items={cfg.rlRollen} placeholder="z.B. CISO, IT-Leiter…"
               onAdd={v => updateConfig('richtlinien.rollen', [...cfg.rlRollen, v])}
               onRemove={v => updateConfig('richtlinien.rollen', cfg.rlRollen.filter(x => x !== v))}/>
@@ -1503,7 +1503,6 @@ const RichtlinieForm = ({ initial, onSave, onClose, anforderungen, config }) => 
     art: rlArt[1] || rlArt[0] || '',
     vertraulichkeit: 'K2',
     anwender: [], rollen: [],
-    verantwortung: '',
     pdf: null, anforderungen_ids: [],
   });
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -1586,7 +1585,7 @@ const RichtlinieForm = ({ initial, onSave, onClose, anforderungen, config }) => 
           </div>
         </Field>
 
-        {/* Anwender + Rollen */}
+        {/* Anwender + Verantwortung */}
         <div className="grid grid-cols-2 gap-4">
           <Field label="Anwender" hint="Mehrfachauswahl">
             <div className="flex flex-wrap gap-2 mt-0.5">
@@ -1602,7 +1601,7 @@ const RichtlinieForm = ({ initial, onSave, onClose, anforderungen, config }) => 
             </div>
           </Field>
           {rlRollen.length > 0 && (
-            <Field label="Rollen" hint="Mehrfachauswahl">
+            <Field label="Verantwortung" hint="Mehrfachauswahl">
               <div className="flex flex-wrap gap-2 mt-0.5">
                 {rlRollen.map(opt => {
                   const checked = (form.rollen || []).includes(opt);
@@ -1617,11 +1616,6 @@ const RichtlinieForm = ({ initial, onSave, onClose, anforderungen, config }) => 
             </Field>
           )}
         </div>
-
-        {/* Verantwortung */}
-        <Field label="Verantwortung">
-          <input className="field" value={form.verantwortung} onChange={e => set('verantwortung', e.target.value)} placeholder="z.B. CISO, IT-Leitung, Datenschutzbeauftragter"/>
-        </Field>
 
         {/* PDF-Anhang */}
         <Field label="PDF-Dokument">
@@ -1718,7 +1712,15 @@ const RichtlinieDetailPanel = ({ richtlinie, onEdit, onClose, anforderungen }) =
           </div>
           <div>
             <span className="lbl">Verantwortung</span>
-            <p className="text-[13.5px] text-ink-900">{richtlinie.verantwortung || '—'}</p>
+            <div className="flex flex-wrap gap-1.5 mt-0.5">
+              {(richtlinie.rollen || []).length === 0
+                ? <span className="text-[13px] text-ink-400">—</span>
+                : (richtlinie.rollen || []).map(r => (
+                  <span key={r} className="inline-flex items-center gap-1 px-2 py-0.5 bg-ink-50 border border-line rounded text-[12px] text-ink-700">
+                    <Icon name="user" cls="w-3 h-3 text-ink-400"/>{r}
+                  </span>
+                ))}
+            </div>
           </div>
           <div>
             <span className="lbl">Anwender</span>
