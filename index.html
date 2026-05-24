@@ -678,12 +678,11 @@ const DEFAULT_CONFIG = {
     kategorien: { 'Informationssicherheit': [], 'BCM': [], 'Risikomanagement': [] },
     art:      ['Strategie', 'Richtlinie', 'Leitlinie', 'Verfahrensanweisung'],
     anwender: ['Mitarbeitende', 'Externe Mitarbeitende'],
-    rollen:   [],
   },
   iks: {
     kategorien: ['Finanziell', 'Operationell', 'Compliance', 'IT'],
-    rollen:     [],
   },
+  rollen: [],
 };
 
 const getConfig = (data) => {
@@ -693,9 +692,9 @@ const getConfig = (data) => {
     rlKategorien:     cfg.richtlinien?.kategorien      || DEFAULT_CONFIG.richtlinien.kategorien,
     rlArt:            cfg.richtlinien?.art             || DEFAULT_CONFIG.richtlinien.art,
     rlAnwender:       cfg.richtlinien?.anwender        || DEFAULT_CONFIG.richtlinien.anwender,
-    rlRollen:         cfg.richtlinien?.rollen          || DEFAULT_CONFIG.richtlinien.rollen,
     iksKategorien:    cfg.iks?.kategorien              || DEFAULT_CONFIG.iks.kategorien,
-    iksRollen:        cfg.iks?.rollen                  || DEFAULT_CONFIG.iks.rollen,
+    // Unified roles — falls back to legacy richtlinien.rollen for existing data migration
+    rollen:           cfg.rollen || cfg.richtlinien?.rollen || [],
   };
 };
 
@@ -1081,6 +1080,7 @@ const EinstellungenModal = ({ data, onImport, onClose, syncStatus, onConnectGist
 
   const TABS = [
     { id: 'benutzer', label: 'Benutzer'      },
+    { id: 'rollen',   label: 'Rollen'        },
     { id: 'sync',     label: 'Sync & Backup' },
     { id: 'anf',      label: 'Anforderungen' },
     { id: 'rl',       label: 'Richtlinien'   },
@@ -1240,6 +1240,18 @@ const EinstellungenModal = ({ data, onImport, onClose, syncStatus, onConnectGist
         </div>
       )}
 
+      {tab === 'rollen' && (
+        <div className="space-y-4">
+          <p className="text-[13px] text-ink-400">Zentrale Rollenliste — gilt für alle Module (Richtlinien, Assets, IKS).</p>
+          <ListEditor
+            items={cfg.rollen}
+            placeholder="z.B. CISO, IT-Leiter, Compliance Officer…"
+            onAdd={v => updateConfig('rollen', [...cfg.rollen, v])}
+            onRemove={v => updateConfig('rollen', cfg.rollen.filter(x => x !== v))}
+          />
+        </div>
+      )}
+
       {tab === 'rl' && (
         <div className="space-y-6">
           <div>
@@ -1264,12 +1276,6 @@ const EinstellungenModal = ({ data, onImport, onClose, syncStatus, onConnectGist
               onAdd={v => updateConfig('richtlinien.anwender', [...cfg.rlAnwender, v])}
               onRemove={v => updateConfig('richtlinien.anwender', cfg.rlAnwender.filter(x => x !== v))}/>
           </div>
-          <div>
-            <span className="lbl">Verantwortung</span>
-            <ListEditor items={cfg.rlRollen} placeholder="z.B. CISO, IT-Leiter…"
-              onAdd={v => updateConfig('richtlinien.rollen', [...cfg.rlRollen, v])}
-              onRemove={v => updateConfig('richtlinien.rollen', cfg.rlRollen.filter(x => x !== v))}/>
-          </div>
         </div>
       )}
 
@@ -1283,16 +1289,6 @@ const EinstellungenModal = ({ data, onImport, onClose, syncStatus, onConnectGist
               placeholder="z.B. Finanziell, IT…"
               onAdd={v => updateConfig('iks.kategorien', [...cfg.iksKategorien, v])}
               onRemove={v => updateConfig('iks.kategorien', cfg.iksKategorien.filter(x => x !== v))}
-            />
-          </div>
-          <div>
-            <span className="lbl">Rollen / Verantwortung</span>
-            <p className="text-[12px] text-ink-400 mb-3">Rollen für Kontrolleigner und Durchführung verwalten.</p>
-            <ListEditor
-              items={cfg.iksRollen}
-              placeholder="z.B. CFO, Compliance Officer…"
-              onAdd={v => updateConfig('iks.rollen', [...cfg.iksRollen, v])}
-              onRemove={v => updateConfig('iks.rollen', cfg.iksRollen.filter(x => x !== v))}
             />
           </div>
         </div>
@@ -1626,7 +1622,7 @@ const RichtlinieForm = ({ initial, onSave, onClose, anforderungen, config }) => 
   const rlKategorien = config?.rlKategorien || DEFAULT_CONFIG.richtlinien.kategorien;
   const rlArt        = config?.rlArt        || DEFAULT_CONFIG.richtlinien.art;
   const rlAnwender   = config?.rlAnwender   || DEFAULT_CONFIG.richtlinien.anwender;
-  const rlRollen     = config?.rlRollen     || [];
+  const rlRollen     = config?.rollen       || [];
   const defaultKat   = Object.keys(rlKategorien)[0] || '';
 
   const [form, setForm] = useState(() => initial || {
@@ -2341,7 +2337,7 @@ const SchutzBadge = ({ level }) => {
 
 const AssetForm = ({ initial, onSave, onClose, config }) => {
   const isEdit = !!initial?.id;
-  const rollen = config?.rlRollen || [];
+  const rollen = config?.rollen || [];
   const [tab, setTab] = useState('allgemein');
   const [form, setForm] = useState(() => initial || {
     asset_id: '', titel: '', beschreibung: '', status: 'aktiv',
@@ -2805,7 +2801,7 @@ const RelevanzBadge = ({ id }) => {
 const IKSForm = ({ initial, onSave, onClose, config }) => {
   const isEdit = !!initial?.id;
   const iksKategorien = config?.iksKategorien || [];
-  const iksRollen     = config?.iksRollen     || [];
+  const iksRollen     = config?.rollen         || [];
   const [tab, setTab] = useState('allgemein');
   const [form, setForm] = useState(() => initial || {
     iks_id: '', titel: '', beschreibung: '',
@@ -2853,7 +2849,7 @@ const IKSForm = ({ initial, onSave, onClose, config }) => {
   const RollenChips = ({ field }) => (
     <div className="flex flex-wrap gap-2 mt-0.5">
       {iksRollen.length === 0
-        ? <p className="text-[12px] text-ink-400 italic">Keine Rollen konfiguriert (Einstellungen → IKS)</p>
+        ? <p className="text-[12px] text-ink-400 italic">Keine Rollen konfiguriert (Einstellungen → Rollen)</p>
         : iksRollen.map(r => {
             const active = (form[field] || []).includes(r);
             return (
@@ -3100,80 +3096,112 @@ const IKSView = ({ iksItems, onCreate, onView, onEdit, onDelete, config, canEdit
   const [statusFilter, setStatusFilter]   = useState('alle');
   const [relevanzFilter, setRelevanzFilter] = useState('alle');
 
+  const iksKategorien = config?.iksKategorien || [];
+
   const filtered = iksItems.filter(k => {
     const q = search.toLowerCase();
-    const matchS = !q || k.iks_id.toLowerCase().includes(q) || k.titel.toLowerCase().includes(q) || (k.beschreibung || '').toLowerCase().includes(q);
-    const matchF = statusFilter  === 'alle' || k.status   === statusFilter;
+    const matchS = !q || k.iks_id.toLowerCase().includes(q) || k.titel.toLowerCase().includes(q) || (k.kategorie || '').toLowerCase().includes(q);
+    const matchF = statusFilter   === 'alle' || k.status   === statusFilter;
     const matchR = relevanzFilter === 'alle' || k.relevanz === relevanzFilter;
     return matchS && matchF && matchR;
   }).sort((a, b) => a.iks_id.localeCompare(b.iks_id));
 
   const schluessel = iksItems.filter(k => k.relevanz === 'schluesselkontrolle').length;
-  const hasFilter = search || statusFilter !== 'alle' || relevanzFilter !== 'alle';
+  const hasFilter  = search || statusFilter !== 'alle' || relevanzFilter !== 'alle';
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-[28px] font-medium text-ink-900 tracking-tight leading-none">Internes Kontrollsystem</h1>
           <p className="text-[13px] text-ink-400 mt-2">Kontrollaktivitäten erfassen und verwalten.</p>
         </div>
-        {canEdit && <button onClick={onCreate} className="btn btn-primary"><Icon name="plus" cls="w-3.5 h-3.5"/> Neue Kontrolle</button>}
+        {canEdit && <button onClick={onCreate} className="btn btn-primary">
+          <Icon name="plus" cls="w-3.5 h-3.5"/> Neue Kontrolle
+        </button>}
       </div>
 
+      {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <StatCard label="Kontrollen gesamt"    value={iksItems.length}                                          accent="black"  icon="shield"/>
-        <StatCard label="Aktiv"                value={iksItems.filter(k => k.status === 'aktiv').length}        accent="petrol" icon="check"/>
-        <StatCard label="Schlüsselkontrollen"  value={schluessel}                                               accent="black"  icon="zap"/>
+        <StatCard label="Kontrollen gesamt"   value={iksItems.length}                                    accent="black"  icon="shield"/>
+        <StatCard label="Aktiv"               value={iksItems.filter(k => k.status === 'aktiv').length}  accent="petrol" icon="check"/>
+        <StatCard label="Schlüsselkontrollen" value={schluessel}                                          accent="yellow" icon="zap"/>
       </div>
 
+      {/* Toolbar */}
       <div className="toolbar-scroll"><div className="toolbar">
-        <div className="relative flex-1 min-w-[180px]">
-          <Icon name="search" cls="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-ink-300"/>
-          <input className="field pl-8 text-[13px]" placeholder="Suche…" value={search} onChange={e => setSearch(e.target.value)}/>
+        <label className={`toolbar-seg seg-search ${search ? 'is-active' : ''}`}>
+          <Icon name="search" cls="seg-ico"/>
+          <input placeholder="Suche nach ID, Titel, Kategorie…" value={search} onChange={e => setSearch(e.target.value)}/>
+        </label>
+        <label className={`toolbar-seg has-select ${statusFilter !== 'alle' ? 'is-active' : ''}`} style={{ flex: '1 1 0', minWidth: 0 }}>
+          <Icon name="check" cls="seg-ico"/>
+          <span className="seg-label">Status</span>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ flex: 1, minWidth: 0 }}>
+            <option value="alle">Alle</option>
+            <option value="aktiv">Aktiv</option>
+            <option value="inaktiv">Inaktiv</option>
+          </select>
+        </label>
+        <label className={`toolbar-seg has-select ${relevanzFilter !== 'alle' ? 'is-active' : ''}`} style={{ flex: '1 1 0', minWidth: 0 }}>
+          <Icon name="zap" cls="seg-ico"/>
+          <span className="seg-label">Relevanz</span>
+          <select value={relevanzFilter} onChange={e => setRelevanzFilter(e.target.value)} style={{ flex: 1, minWidth: 0 }}>
+            <option value="alle">Alle</option>
+            {IKS_RELEVANZ.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+          </select>
+        </label>
+        {hasFilter && (
+          <button onClick={() => { setSearch(''); setStatusFilter('alle'); setRelevanzFilter('alle'); }} className="toolbar-reset">
+            <Icon name="x" cls="w-3.5 h-3.5"/> Zurücksetzen
+          </button>
+        )}
+        <div className="toolbar-count">
+          {hasFilter && <span className="count-dot"/>}
+          <span><b>{filtered.length}</b> von {iksItems.length}</span>
         </div>
-        <select className="field text-[13px] w-auto flex-shrink-0" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-          <option value="alle">Alle Status</option>
-          <option value="aktiv">Aktiv</option>
-          <option value="inaktiv">Inaktiv</option>
-        </select>
-        <select className="field text-[13px] w-auto flex-shrink-0" value={relevanzFilter} onChange={e => setRelevanzFilter(e.target.value)}>
-          <option value="alle">Alle Relevanz</option>
-          {IKS_RELEVANZ.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
-        </select>
-        {hasFilter && <button onClick={() => { setSearch(''); setStatusFilter('alle'); setRelevanzFilter('alle'); }} className="btn btn-ghost btn-sm flex-shrink-0">Zurücksetzen</button>}
       </div></div>
 
-      {filtered.length === 0 ? (
-        <div className="py-16 text-center">
-          <div className="w-12 h-12 mx-auto mb-4 rounded-2xl bg-ink-50 flex items-center justify-center text-ink-200">
-            <Icon name="shield" cls="w-6 h-6"/>
+      {/* Tabelle */}
+      <div className="card overflow-x-auto shadow-soft">
+        {filtered.length === 0 ? (
+          <div className="px-12 py-20 text-center">
+            <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-ink-50 flex items-center justify-center text-ink-300">
+              <Icon name={hasFilter ? 'search' : 'shield'} cls="w-5 h-5"/>
+            </div>
+            <p className="text-[15px] font-medium text-ink-900 mb-1">{hasFilter ? 'Keine Treffer' : 'Noch keine Kontrollen'}</p>
+            <p className="text-[13px] text-ink-400 mb-5">{hasFilter ? 'Passe die Filter an oder setze sie zurück.' : 'Lege die erste Kontrollaktivität an.'}</p>
+            {!hasFilter && canEdit && <button onClick={onCreate} className="btn btn-primary"><Icon name="plus" cls="w-3.5 h-3.5"/> Neue Kontrolle</button>}
           </div>
-          <p className="text-[14px] font-medium text-ink-900 mb-1">{hasFilter ? 'Keine Ergebnisse' : 'Noch keine Kontrollen'}</p>
-          <p className="text-[12.5px] text-ink-400">{hasFilter ? 'Filter anpassen oder zurücksetzen.' : 'Legen Sie die erste Kontrollaktivität an.'}</p>
-        </div>
-      ) : (
-        <div className="card shadow-soft overflow-hidden">
-          <table className="data-table">
+        ) : (
+          <table className="data-table" style={{ minWidth: '860px' }}>
             <thead>
               <tr>
-                <th>ID</th>
+                <th style={{ width: '110px' }}>ID</th>
                 <th>Titel</th>
-                <th>Kategorie</th>
-                <th>Relevanz</th>
-                <th>Häufigkeit</th>
-                <th>Status</th>
-                {(canEdit || canDelete) && <th></th>}
+                <th style={{ width: '140px' }}>Kategorie</th>
+                <th style={{ width: '160px' }}>Relevanz</th>
+                <th style={{ width: '140px' }}>Häufigkeit</th>
+                <th style={{ width: '90px'  }}>Status</th>
+                {(canEdit || canDelete) && <th style={{ width: '60px' }}></th>}
               </tr>
             </thead>
             <tbody>
               {filtered.map(k => (
-                <tr key={k.id} className="cursor-pointer" onClick={() => onView(k)}>
-                  <td><span className="font-mono text-[12px] text-ink-500">{k.iks_id}</span></td>
-                  <td><p className="text-[13.5px] font-medium text-ink-900">{k.titel}</p></td>
-                  <td><span className="text-[12.5px] text-ink-500">{k.kategorie || '—'}</span></td>
+                <tr key={k.id} className="row-clickable" onClick={() => onView(k)}>
+                  <td><span className="id-pill">{k.iks_id}</span></td>
+                  <td>
+                    <p className="text-[13.5px] text-ink-900 font-medium leading-snug">{k.titel}</p>
+                    {(k.kontrolleigner || []).length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {k.kontrolleigner.map(r => <span key={r} className="tag">{r}</span>)}
+                      </div>
+                    )}
+                  </td>
+                  <td><p className="text-[12.5px] text-ink-700">{k.kategorie || '—'}</p></td>
                   <td><RelevanzBadge id={k.relevanz}/></td>
-                  <td><span className="text-[12.5px] text-ink-500">{IKS_HAEUFIGKEIT.find(h => h.id === k.haeufigkeit)?.label || k.haeufigkeit || '—'}</span></td>
+                  <td><p className="text-[12.5px] text-ink-700">{IKS_HAEUFIGKEIT.find(h => h.id === k.haeufigkeit)?.label || '—'}</p></td>
                   <td>
                     <span className={`text-[11.5px] font-medium px-2 py-0.5 rounded border ${k.status === 'aktiv' ? 'bg-[#e6f1ee] text-[#2e5a4d] border-[#b4d5cb]' : 'bg-ink-50 text-ink-500 border-line'}`}>
                       {k.status === 'aktiv' ? 'Aktiv' : 'Inaktiv'}
@@ -3191,8 +3219,8 @@ const IKSView = ({ iksItems, onCreate, onView, onEdit, onDelete, config, canEdit
               ))}
             </tbody>
           </table>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };
