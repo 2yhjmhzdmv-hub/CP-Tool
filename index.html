@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Anforderungen [TEST]</title>
+<title>Compliance-Management [TEST]</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
@@ -1028,42 +1028,27 @@ const AnforderungForm = ({ initial, onSave, onClose, anforderungen }) => {
   const isEdit = !!initial?.id;
   const defaultKat = Object.keys(KATEGORIEN)[0];
   const [form, setForm] = useState(() => initial || {
-    anforderung_id: '', kategorie: defaultKat, unterkategorie: '',
-    beschreibung: '', schutzobjektarten: [], schutzbedarf: 'mittel',
-    dienstleistungsmodelle: [], kritische_funktionen: false,
+    anforderung_id: '', kategorie: defaultKat, unterkategorie: '', beschreibung: '',
   });
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const setKategorie = (kat) => setForm(f => ({ ...f, kategorie: kat, unterkategorie: '' }));
-  const toggleObjektart = (art) => setForm(f => ({
-    ...f,
-    schutzobjektarten: f.schutzobjektarten.includes(art)
-      ? f.schutzobjektarten.filter(a => a !== art)
-      : [...f.schutzobjektarten, art],
-  }));
-  const toggleDienstleistung = (dl) => setForm(f => ({
-    ...f,
-    dienstleistungsmodelle: (f.dienstleistungsmodelle || []).includes(dl)
-      ? f.dienstleistungsmodelle.filter(d => d !== dl)
-      : [...(f.dienstleistungsmodelle || []), dl],
-  }));
 
   const handleSave = () => {
     if (!form.anforderung_id.trim()) return alert('Bitte eine ID eingeben.');
     const idTrimmed = form.anforderung_id.trim();
     const duplicate = (anforderungen || []).some(a => a.id !== form.id && a.anforderung_id === idTrimmed);
-    if (duplicate) return alert(`Die ID "${idTrimmed}" ist bereits vergeben. Bitte wähle eine andere ID.`);
+    if (duplicate) return alert(`Die ID "${idTrimmed}" ist bereits vergeben.`);
     if (!form.beschreibung.trim()) return alert('Bitte eine Beschreibung eingeben.');
-    if (form.schutzobjektarten.length === 0) return alert('Bitte mindestens eine Schutzobjektart auswählen.');
     onSave(form);
   };
 
   return (
     <Modal
       title={isEdit ? 'Anforderung bearbeiten' : 'Neue Anforderung'}
-      subtitle={isEdit ? form.anforderung_id : 'Lege eine neue Sicherheits- oder Compliance-Anforderung an.'}
+      subtitle={isEdit ? form.anforderung_id : 'Neue Anforderung erfassen'}
       onClose={onClose}
-      size="xl"
+      size="lg"
       footer={
         <>
           <button onClick={onClose} className="btn btn-ghost">Abbrechen</button>
@@ -1073,10 +1058,10 @@ const AnforderungForm = ({ initial, onSave, onClose, anforderungen }) => {
         </>
       }
     >
-      <div className="space-y-6">
+      <div className="space-y-5">
         <div className="grid grid-cols-3 gap-4">
           <Field label="ID" required>
-            <input className="field font-mono" value={form.anforderung_id} onChange={e => set('anforderung_id', e.target.value)}/>
+            <input className="field font-mono" value={form.anforderung_id} onChange={e => set('anforderung_id', e.target.value)} placeholder="ANF-001"/>
           </Field>
           <Field label="Kategorie">
             <select className="field" value={form.kategorie} onChange={e => setKategorie(e.target.value)}>
@@ -1090,69 +1075,8 @@ const AnforderungForm = ({ initial, onSave, onClose, anforderungen }) => {
             </select>
           </Field>
         </div>
-
         <Field label="Beschreibung" required>
           <textarea className="field" rows={6} value={form.beschreibung} onChange={e => set('beschreibung', e.target.value)} placeholder="Anforderung präzise beschreiben…"/>
-        </Field>
-
-        <Field label="Schutzbedarf">
-          <div className="seg">
-            {Object.entries(SCHUTZBEDARF_CONFIG).map(([val, cfg]) => (
-              <button
-                key={val} type="button"
-                onClick={() => set('schutzbedarf', val)}
-                className={`seg-btn ${form.schutzbedarf === val ? 'is-active' : ''}`}
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${
-                  val === 'niedrig' ? 'bg-[#4a8a7a]' : val === 'mittel' ? 'bg-[#c08020]' : 'bg-[#b53a31]'
-                }`}></span>
-                {cfg.label}
-              </button>
-            ))}
-          </div>
-        </Field>
-
-        <Field label="Betroffene Schutzobjektarten" required hint="Mehrfachauswahl">
-          <div className="grid grid-cols-2 gap-2">
-            {SCHUTZOBJEKTARTEN.map(art => {
-              const checked = form.schutzobjektarten.includes(art);
-              return (
-                <div key={art} onClick={() => toggleObjektart(art)} className={`opt ${checked ? 'is-checked' : ''}`}>
-                  <span className="opt-check">
-                    {checked && <svg viewBox="0 0 12 12" fill="none" className="w-2.5 h-2.5"><path d="M2 6l3 3 5-5" stroke="#1a1a1d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                  </span>
-                  <span className="flex-1 truncate">{art}</span>
-                </div>
-              );
-            })}
-          </div>
-        </Field>
-
-        <Field label="Relevante Dienstleistungsmodelle" hint="Mehrfachauswahl">
-          <div className="flex flex-wrap gap-2">
-            {DIENSTLEISTUNGSMODELLE.map(dl => {
-              const checked = (form.dienstleistungsmodelle || []).includes(dl);
-              return (
-                <div key={dl} onClick={() => toggleDienstleistung(dl)} className={`opt ${checked ? 'is-checked' : ''}`} style={{ minWidth: 0 }}>
-                  <span className="opt-check">
-                    {checked && <svg viewBox="0 0 12 12" fill="none" className="w-2.5 h-2.5"><path d="M2 6l3 3 5-5" stroke="#1a1a1d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                  </span>
-                  <span className="font-mono text-[12px]">{dl}</span>
-                </div>
-              );
-            })}
-          </div>
-        </Field>
-
-        <Field label="Kritische / wichtige Funktionen">
-          <div onClick={() => set('kritische_funktionen', !form.kritische_funktionen)}
-            className={`opt ${form.kritische_funktionen ? 'is-checked' : ''}`}
-            style={{ width: 'fit-content' }}>
-            <span className="opt-check">
-              {form.kritische_funktionen && <svg viewBox="0 0 12 12" fill="none" className="w-2.5 h-2.5"><path d="M2 6l3 3 5-5" stroke="#1a1a1d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-            </span>
-            <span>Unterstützt kritische und wichtige Funktionen</span>
-          </div>
         </Field>
       </div>
     </Modal>
@@ -1161,7 +1085,6 @@ const AnforderungForm = ({ initial, onSave, onClose, anforderungen }) => {
 
 // ── Detail panel ───────────────────────────────────────────────────────────
 const AnforderungDetailPanel = ({ anforderung, onEdit, onClose, richtlinien = [] }) => {
-  const cfg = SCHUTZBEDARF_CONFIG[anforderung.schutzbedarf] || {};
   const linkedRichtlinien = richtlinien.filter(r => (r.anforderungen_ids || []).includes(anforderung.id));
   return (
     <Modal
@@ -1179,16 +1102,6 @@ const AnforderungDetailPanel = ({ anforderung, onEdit, onClose, richtlinien = []
       }
     >
       <div className="space-y-6">
-        <div className="flex items-center gap-3">
-          <SchutzbedarfBadge wert={anforderung.schutzbedarf}/>
-          {anforderung.kritische_funktionen && (
-            <span className="pill-crit">
-              <span className="w-1 h-1 rounded-full bg-petrol-600"></span>
-              Kritische Funktion
-            </span>
-          )}
-        </div>
-
         <div>
           <span className="lbl">Beschreibung</span>
           <p className="text-[14px] text-ink-900 leading-relaxed">{anforderung.beschreibung}</p>
@@ -1196,26 +1109,15 @@ const AnforderungDetailPanel = ({ anforderung, onEdit, onClose, richtlinien = []
 
         <div className="grid grid-cols-2 gap-6">
           <div>
-            <span className="lbl">Schutzobjektarten</span>
-            {anforderung.schutzobjektarten.length === 0
-              ? <span className="text-sm text-ink-300">—</span>
-              : <div className="flex flex-wrap gap-1.5">
-                  {anforderung.schutzobjektarten.map(s => <span key={s} className="tag-soft">{s}</span>)}
-                </div>
-            }
+            <span className="lbl">Kategorie</span>
+            <p className="text-[13.5px] text-ink-900">{anforderung.kategorie}</p>
           </div>
           <div>
-            <span className="lbl">Dienstleistungsmodelle</span>
-            {(anforderung.dienstleistungsmodelle || []).length === 0
-              ? <span className="text-sm text-ink-300">—</span>
-              : <div className="flex flex-wrap gap-1.5">
-                  {anforderung.dienstleistungsmodelle.map(dl => <span key={dl} className="tag">{dl}</span>)}
-                </div>
-            }
+            <span className="lbl">Unterkategorie</span>
+            <p className="text-[13.5px] text-ink-900">{anforderung.unterkategorie || '—'}</p>
           </div>
         </div>
 
-        {/* Verknüpfte Richtlinien */}
         <div>
           <span className="lbl">Verknüpfte Richtlinien</span>
           {linkedRichtlinien.length === 0 ? (
@@ -1253,24 +1155,15 @@ const AnforderungDetailPanel = ({ anforderung, onEdit, onClose, richtlinien = []
 const AnforderungenView = ({ anforderungen, onCreate, onView, onEdit, onDelete }) => {
   const [search, setSearch] = useState('');
   const [kategorieFilter, setKategorieFilter] = useState('alle');
-  const [bedarfFilter, setBedarfFilter] = useState('alle');
-
-  const stats = useMemo(() => ({
-    hoch:    anforderungen.filter(a => a.schutzbedarf === 'hoch').length,
-    mittel:  anforderungen.filter(a => a.schutzbedarf === 'mittel').length,
-    niedrig: anforderungen.filter(a => a.schutzbedarf === 'niedrig').length,
-    krit:    anforderungen.filter(a => a.kritische_funktionen).length,
-  }), [anforderungen]);
 
   const filtered = anforderungen.filter(a => {
     const q = search.toLowerCase();
     const matchSearch = !q || a.anforderung_id.toLowerCase().includes(q) || a.beschreibung.toLowerCase().includes(q) || (a.kategorie || '').toLowerCase().includes(q) || (a.unterkategorie || '').toLowerCase().includes(q);
     const matchKat = kategorieFilter === 'alle' || a.kategorie === kategorieFilter;
-    const matchBedarf = bedarfFilter === 'alle' || a.schutzbedarf === bedarfFilter;
-    return matchSearch && matchKat && matchBedarf;
+    return matchSearch && matchKat;
   }).sort((a, b) => a.anforderung_id.localeCompare(b.anforderung_id));
 
-  const hasFilter = search || kategorieFilter !== 'alle' || bedarfFilter !== 'alle';
+  const hasFilter = search || kategorieFilter !== 'alle';
 
   return (
     <div className="space-y-6">
@@ -1278,10 +1171,10 @@ const AnforderungenView = ({ anforderungen, onCreate, onView, onEdit, onDelete }
       <div className="flex items-end justify-between gap-6">
         <div>
           <h1 className="text-[28px] font-medium text-ink-900 tracking-tight leading-none">
-            Anforderungen
+            Anforderungsmanagement
           </h1>
           <p className="text-[13px] text-ink-400 mt-2">
-            Sicherheits- und Compliance-Anforderungen auf Basis von DORA, BAIT, MaRisk und vertraglichen Anforderungen.
+            Compliance-Anforderungen erfassen und verwalten.
           </p>
         </div>
         <button onClick={onCreate} className="btn btn-primary">
@@ -1290,17 +1183,13 @@ const AnforderungenView = ({ anforderungen, onCreate, onView, onEdit, onDelete }
       </div>
 
       {/* Stats strip */}
-      <div className="grid grid-cols-5 gap-3">
-        <StatCard label="Alle" value={anforderungen.length} accent="black" icon="layers"/>
-        <StatCard label="Niedriger Schutzbedarf" value={stats.niedrig} accent="green" icon="shield"/>
-        <StatCard label="Mittlerer Schutzbedarf" value={stats.mittel} accent="yellow" icon="shield-half"/>
-        <StatCard label="Hoher Schutzbedarf" value={stats.hoch} accent="red" icon="shield-alert"/>
-        <StatCard label="Kritische Funktionen" value={stats.krit} accent="black" icon="zap"/>
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard label="Anforderungen gesamt" value={anforderungen.length} accent="black" icon="layers"/>
+        <StatCard label="Kategorien" value={new Set(anforderungen.map(a => a.kategorie)).size} accent="petrol" icon="list"/>
       </div>
 
       {/* Toolbar */}
       <div className="toolbar">
-        {/* Suche */}
         <label className={`toolbar-seg seg-search ${search ? 'is-active' : ''}`}>
           <Icon name="search" cls="seg-ico"/>
           <input
@@ -1308,42 +1197,19 @@ const AnforderungenView = ({ anforderungen, onCreate, onView, onEdit, onDelete }
             value={search} onChange={e => setSearch(e.target.value)}
           />
         </label>
-        {/* Kategorie */}
         <label className={`toolbar-seg has-select ${kategorieFilter !== 'alle' ? 'is-active' : ''}`} style={{ flex: '1 1 0', minWidth: 0 }}>
           <Icon name="layers" cls="seg-ico"/>
           <span className="seg-label">Kategorie</span>
-          <select
-            value={kategorieFilter} onChange={e => setKategorieFilter(e.target.value)}
-            style={{ flex: 1, minWidth: 0 }}
-          >
+          <select value={kategorieFilter} onChange={e => setKategorieFilter(e.target.value)} style={{ flex: 1, minWidth: 0 }}>
             <option value="alle">Alle</option>
             {Object.keys(KATEGORIEN).map(k => <option key={k}>{k}</option>)}
           </select>
         </label>
-        {/* Schutzbedarf */}
-        <label className={`toolbar-seg has-select ${bedarfFilter !== 'alle' ? 'is-active' : ''}`} style={{ flex: '1 1 0', minWidth: 0 }}>
-          <Icon name="shield" cls="seg-ico"/>
-          <span className="seg-label">Schutzbedarf</span>
-          <select
-            value={bedarfFilter} onChange={e => setBedarfFilter(e.target.value)}
-            style={{ flex: 1, minWidth: 0 }}
-          >
-            <option value="alle">Alle</option>
-            <option value="niedrig">Niedrig</option>
-            <option value="mittel">Mittel</option>
-            <option value="hoch">Hoch</option>
-          </select>
-        </label>
-        {/* Reset */}
         {hasFilter && (
-          <button
-            onClick={() => { setSearch(''); setKategorieFilter('alle'); setBedarfFilter('alle'); }}
-            className="toolbar-reset"
-          >
+          <button onClick={() => { setSearch(''); setKategorieFilter('alle'); }} className="toolbar-reset">
             <Icon name="x" cls="w-3.5 h-3.5"/> Zurücksetzen
           </button>
         )}
-        {/* Count */}
         <div className="toolbar-count">
           {hasFilter && <span className="count-dot"/>}
           <span><b>{filtered.length}</b> von {anforderungen.length}</span>
@@ -1354,44 +1220,25 @@ const AnforderungenView = ({ anforderungen, onCreate, onView, onEdit, onDelete }
       <div className="card overflow-x-auto shadow-soft">
         {filtered.length === 0
           ? <EmptyState hasFilter={hasFilter} onCreate={onCreate}/>
-          : <table className="data-table" style={{ minWidth: '960px' }}>
+          : <table className="data-table" style={{ minWidth: '700px' }}>
               <thead>
                 <tr>
                   <th style={{ width: '110px' }}>ID</th>
                   <th>Beschreibung</th>
-                  <th style={{ width: '200px' }}>Kategorie</th>
-                  <th style={{ width: '110px' }}>Schutzbedarf</th>
-                  <th style={{ width: '170px' }}>Dienstleistung</th>
+                  <th style={{ width: '220px' }}>Kategorie</th>
                   <th style={{ width: '60px' }}></th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(a => (
                   <tr key={a.id} className="row-clickable" onClick={() => onView(a)}>
-                    <td>
-                      <span className="id-pill">{a.anforderung_id}</span>
-                    </td>
+                    <td><span className="id-pill">{a.anforderung_id}</span></td>
                     <td>
                       <p className="text-[13.5px] text-ink-900 line-clamp-2 leading-snug">{a.beschreibung}</p>
-                      {a.kritische_funktionen && (
-                        <span className="pill-crit mt-1.5">
-                          <span className="w-1 h-1 rounded-full bg-petrol-600"></span>
-                          Kritische Funktion
-                        </span>
-                      )}
                     </td>
                     <td>
                       <p className="text-[12.5px] text-ink-700 leading-snug">{a.kategorie}</p>
-                      {a.unterkategorie && <p className="text-[11px] text-ink-400 mt-0.5 leading-snug truncate" style={{ maxWidth: '180px' }}>{a.unterkategorie}</p>}
-                    </td>
-                    <td><SchutzbedarfBadge wert={a.schutzbedarf}/></td>
-                    <td>
-                      <div className="flex flex-wrap gap-1">
-                        {(a.dienstleistungsmodelle || []).length === 0
-                          ? <span className="text-xs text-ink-300">—</span>
-                          : (a.dienstleistungsmodelle || []).map(dl => <span key={dl} className="tag">{dl}</span>)
-                        }
-                      </div>
+                      {a.unterkategorie && <p className="text-[11px] text-ink-400 mt-0.5 leading-snug truncate" style={{ maxWidth: '200px' }}>{a.unterkategorie}</p>}
                     </td>
                     <td onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-0.5 justify-end">
@@ -2011,8 +1858,8 @@ const App = () => {
   const rl  = data.richtlinien  || [];
 
   const navItems = [
-    { id: 'anforderungen', label: 'Anforderungen', icon: 'list',  count: anf.length },
-    { id: 'richtlinien',   label: 'Richtlinien',   icon: 'book',  count: rl.length  },
+    { id: 'anforderungen', label: 'Anforderungsmanagement', icon: 'list',  count: anf.length },
+    { id: 'richtlinien',   label: 'Richtlinien',            icon: 'book',  count: rl.length  },
   ];
 
   return (
@@ -2025,7 +1872,7 @@ const App = () => {
           </div>
           {sidebarOpen && (
             <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-semibold text-ink-900 leading-tight tracking-tight">Compliance</p>
+              <p className="text-[13px] font-semibold text-ink-900 leading-tight tracking-tight">Compliance-</p>
               <p className="text-[11px] text-ink-400 leading-tight">Management</p>
             </div>
           )}
@@ -2110,7 +1957,7 @@ const App = () => {
       {/* Anforderung Form */}
       {anforderungModal && (
         <AnforderungForm
-          initial={anforderungModal === 'new' ? { anforderung_id: '', kategorie: Object.keys(KATEGORIEN)[0], unterkategorie: '', beschreibung: '', schutzobjektarten: [], schutzbedarf: 'mittel', dienstleistungsmodelle: [], kritische_funktionen: false } : anforderungModal}
+          initial={anforderungModal === 'new' ? { anforderung_id: '', kategorie: Object.keys(KATEGORIEN)[0], unterkategorie: '', beschreibung: '' } : anforderungModal}
           onSave={anforderungModal === 'new' ? createAnforderung : updateAnforderung}
           onClose={() => setAnforderungModal(null)}
           anforderungen={anf}
