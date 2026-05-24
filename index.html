@@ -680,6 +680,10 @@ const DEFAULT_CONFIG = {
     anwender: ['Mitarbeitende', 'Externe Mitarbeitende'],
     rollen:   [],
   },
+  iks: {
+    kategorien: ['Finanziell', 'Operationell', 'Compliance', 'IT'],
+    rollen:     [],
+  },
 };
 
 const getConfig = (data) => {
@@ -690,6 +694,8 @@ const getConfig = (data) => {
     rlArt:            cfg.richtlinien?.art             || DEFAULT_CONFIG.richtlinien.art,
     rlAnwender:       cfg.richtlinien?.anwender        || DEFAULT_CONFIG.richtlinien.anwender,
     rlRollen:         cfg.richtlinien?.rollen          || DEFAULT_CONFIG.richtlinien.rollen,
+    iksKategorien:    cfg.iks?.kategorien              || DEFAULT_CONFIG.iks.kategorien,
+    iksRollen:        cfg.iks?.rollen                  || DEFAULT_CONFIG.iks.rollen,
   };
 };
 
@@ -728,6 +734,7 @@ const loadData = () => {
       const parsed = JSON.parse(raw);
       if (!parsed.richtlinien) parsed.richtlinien = [];
       if (!parsed.assets)      parsed.assets     = [];
+      if (!parsed.iks)         parsed.iks        = [];
       if (!parsed.config)      parsed.config = DEFAULT_CONFIG;
       if (!parsed.users)       parsed.users  = [];
       return parsed;
@@ -751,6 +758,8 @@ const loadFromGist = async (token, gistId) => {
   if (!content) throw new Error('Datei nicht im Gist gefunden');
   const parsed = JSON.parse(content);
   if (!parsed.richtlinien) parsed.richtlinien = [];
+  if (!parsed.assets)      parsed.assets     = [];
+  if (!parsed.iks)         parsed.iks        = [];
   if (!parsed.config)      parsed.config = DEFAULT_CONFIG;
   if (!parsed.users)       parsed.users  = [];
   return parsed;
@@ -828,7 +837,7 @@ const SEED = { anforderungen: [  {
     schutzbedarf: 'niedrig', dienstleistungsmodelle: ['SaaS', 'PaaS', 'IaaS', 'IKT-Beratung'], kritische_funktionen: false,
     erstellt_am: '2024-03-01', aktualisiert_am: '2024-03-01',
   },
-], richtlinien: [], assets: [], users: [], config: DEFAULT_CONFIG};
+], richtlinien: [], assets: [], iks: [], users: [], config: DEFAULT_CONFIG};
 
 // ── Icons (inline SVG, 1.5 stroke) ─────────────────────────────────────────
 const Icon = ({ name, cls = 'w-4 h-4' }) => {
@@ -1075,6 +1084,7 @@ const EinstellungenModal = ({ data, onImport, onClose, syncStatus, onConnectGist
     { id: 'sync',     label: 'Sync & Backup' },
     { id: 'anf',      label: 'Anforderungen' },
     { id: 'rl',       label: 'Richtlinien'   },
+    { id: 'iks',      label: 'IKS'           },
   ];
 
   return (
@@ -1259,6 +1269,31 @@ const EinstellungenModal = ({ data, onImport, onClose, syncStatus, onConnectGist
             <ListEditor items={cfg.rlRollen} placeholder="z.B. CISO, IT-Leiter…"
               onAdd={v => updateConfig('richtlinien.rollen', [...cfg.rlRollen, v])}
               onRemove={v => updateConfig('richtlinien.rollen', cfg.rlRollen.filter(x => x !== v))}/>
+          </div>
+        </div>
+      )}
+
+      {tab === 'iks' && (
+        <div className="space-y-6">
+          <div>
+            <span className="lbl">Kategorien</span>
+            <p className="text-[12px] text-ink-400 mb-3">Kategorien für Kontrollaktivitäten verwalten.</p>
+            <ListEditor
+              items={cfg.iksKategorien}
+              placeholder="z.B. Finanziell, IT…"
+              onAdd={v => updateConfig('iks.kategorien', [...cfg.iksKategorien, v])}
+              onRemove={v => updateConfig('iks.kategorien', cfg.iksKategorien.filter(x => x !== v))}
+            />
+          </div>
+          <div>
+            <span className="lbl">Rollen / Verantwortung</span>
+            <p className="text-[12px] text-ink-400 mb-3">Rollen für Kontrolleigner und Durchführung verwalten.</p>
+            <ListEditor
+              items={cfg.iksRollen}
+              placeholder="z.B. CFO, Compliance Officer…"
+              onAdd={v => updateConfig('iks.rollen', [...cfg.iksRollen, v])}
+              onRemove={v => updateConfig('iks.rollen', cfg.iksRollen.filter(x => x !== v))}
+            />
           </div>
         </div>
       )}
@@ -2748,6 +2783,420 @@ const AssetsView = ({ assets, onCreate, onView, onEdit, onDelete, config, canEdi
   );
 };
 
+// ── IKS (Internes Kontrollsystem) ────────────────────────────────────────────
+const IKS_HAEUFIGKEIT = [
+  { id: 'ereignisbasiert', label: 'Ereignisbasiert' },
+  { id: 'taeglich',        label: 'Täglich'         },
+  { id: 'woechentlich',    label: 'Wöchentlich'     },
+  { id: 'monatlich',       label: 'Monatlich'       },
+  { id: 'quartalsweise',   label: 'Quartalsmäßig'   },
+  { id: 'halbjaehrlich',   label: 'Halbjährlich'    },
+  { id: 'jaehrlich',       label: 'Jährlich'        },
+];
+const IKS_RELEVANZ = [
+  { id: 'kontrolle',           label: 'Kontrolle',          cls: 'bg-[#eef3f7] text-[#3b5a72] border-[#c3d4e0]' },
+  { id: 'schluesselkontrolle', label: 'Schlüsselkontrolle', cls: 'bg-[#f3eefd] text-[#5a3b8a] border-[#c9b8f0]' },
+];
+const RelevanzBadge = ({ id }) => {
+  const r = IKS_RELEVANZ.find(x => x.id === id) || IKS_RELEVANZ[0];
+  return <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border ${r.cls}`}>{r.label}</span>;
+};
+
+const IKSForm = ({ initial, onSave, onClose, config }) => {
+  const isEdit = !!initial?.id;
+  const iksKategorien = config?.iksKategorien || [];
+  const iksRollen     = config?.iksRollen     || [];
+  const [tab, setTab] = useState('allgemein');
+  const [form, setForm] = useState(() => initial || {
+    iks_id: '', titel: '', beschreibung: '',
+    kategorie: iksKategorien[0] || '',
+    status: 'aktiv',
+    kontrolleigner: [],
+    relevanz: 'kontrolle',
+    haeufigkeit: 'monatlich',
+    durchfuehrung_durch: [],
+    anhaenge: [],
+  });
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const toggleList = (key, val) => setForm(f => ({
+    ...f, [key]: (f[key] || []).includes(val) ? (f[key] || []).filter(x => x !== val) : [...(f[key] || []), val],
+  }));
+  const handlePdf = (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    setPdfLoading(true);
+    let done = 0; const results = [];
+    files.forEach(file => {
+      if (file.size > 4 * 1024 * 1024) { alert(`"${file.name}" ist zu groß (max. 4 MB).`); done++; if (done === files.length) setPdfLoading(false); return; }
+      const r = new FileReader();
+      r.onload = ev => {
+        results.push({ name: file.name, size: file.size, data: ev.target.result });
+        done++;
+        if (done === files.length) { setForm(f => ({ ...f, anhaenge: [...(f.anhaenge || []), ...results] })); setPdfLoading(false); }
+      };
+      r.readAsDataURL(file);
+    });
+  };
+  const removeAnhang = (idx) => setForm(f => ({ ...f, anhaenge: (f.anhaenge || []).filter((_, i) => i !== idx) }));
+  const handleSave = () => {
+    if (!form.iks_id.trim()) return alert('Bitte eine ID eingeben.');
+    if (!form.titel.trim()) return alert('Bitte einen Titel eingeben.');
+    onSave(form);
+  };
+  const FORM_TABS = [
+    { id: 'allgemein',     label: 'Allgemein'    },
+    { id: 'durchfuehrung', label: 'Durchführung' },
+    { id: 'referenzen',    label: 'Referenzen'   },
+    { id: 'anhaenge',      label: 'Anhänge'      },
+  ];
+  const RollenChips = ({ field }) => (
+    <div className="flex flex-wrap gap-2 mt-0.5">
+      {iksRollen.length === 0
+        ? <p className="text-[12px] text-ink-400 italic">Keine Rollen konfiguriert (Einstellungen → IKS)</p>
+        : iksRollen.map(r => {
+            const active = (form[field] || []).includes(r);
+            return (
+              <button type="button" key={r} onClick={() => toggleList(field, r)}
+                className={`px-2.5 py-1 rounded-lg border text-[12px] font-medium transition-colors select-none ${active ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-line text-ink-500 hover:border-line-strong'}`}>
+                {r}
+              </button>
+            );
+          })
+      }
+    </div>
+  );
+  return (
+    <Modal title={isEdit ? 'Kontrollaktivität bearbeiten' : 'Neue Kontrollaktivität'} onClose={onClose} size="lg"
+      footer={<><button onClick={onClose} className="btn btn-ghost">Abbrechen</button><button onClick={handleSave} className="btn btn-primary">{isEdit ? 'Speichern' : 'Erstellen'}</button></>}>
+      <div className="flex gap-1 border-b border-line -mx-6 px-6 mb-5">
+        {FORM_TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`px-4 py-2 text-[13px] font-medium border-b-2 transition-colors -mb-px ${tab === t.id ? 'border-petrol-500 text-petrol-600' : 'border-transparent text-ink-400 hover:text-ink-900'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'allgemein' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="ID" required>
+              <input className="field" value={form.iks_id} onChange={e => set('iks_id', e.target.value)} placeholder="z.B. IKS-001"/>
+            </Field>
+            <Field label="Status">
+              <select className="field" value={form.status} onChange={e => set('status', e.target.value)}>
+                <option value="aktiv">Aktiv</option>
+                <option value="inaktiv">Inaktiv</option>
+              </select>
+            </Field>
+          </div>
+          <Field label="Titel" required>
+            <input className="field" value={form.titel} onChange={e => set('titel', e.target.value)} placeholder="Bezeichnung der Kontrollaktivität"/>
+          </Field>
+          <Field label="Beschreibung">
+            <textarea className="field" rows={3} value={form.beschreibung || ''} onChange={e => set('beschreibung', e.target.value)} placeholder="Ziel und Inhalt der Kontrolle…"/>
+          </Field>
+          <Field label="Kategorie">
+            <select className="field" value={form.kategorie || ''} onChange={e => set('kategorie', e.target.value)}>
+              {iksKategorien.length === 0
+                ? <option value="">— keine Kategorien konfiguriert —</option>
+                : iksKategorien.map(k => <option key={k}>{k}</option>)
+              }
+            </select>
+          </Field>
+          <Field label="Relevanz">
+            <div className="flex gap-2 mt-0.5">
+              {IKS_RELEVANZ.map(r => (
+                <label key={r.id} onClick={() => set('relevanz', r.id)}
+                  className={`flex-1 text-center px-3 py-2 rounded-lg border cursor-pointer text-[12.5px] font-medium transition-colors select-none ${form.relevanz === r.id ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-line text-ink-500 hover:border-line-strong'}`}>
+                  {r.label}
+                </label>
+              ))}
+            </div>
+          </Field>
+          <Field label="Kontrolleigner">
+            <RollenChips field="kontrolleigner"/>
+          </Field>
+        </div>
+      )}
+
+      {tab === 'durchfuehrung' && (
+        <div className="space-y-5">
+          <Field label="Häufigkeit">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-0.5">
+              {IKS_HAEUFIGKEIT.map(h => (
+                <label key={h.id} onClick={() => set('haeufigkeit', h.id)}
+                  className={`text-center px-3 py-2.5 rounded-lg border cursor-pointer text-[12.5px] font-medium transition-colors select-none ${form.haeufigkeit === h.id ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-line text-ink-500 hover:border-line-strong'}`}>
+                  {h.label}
+                </label>
+              ))}
+            </div>
+          </Field>
+          <Field label="Durchführung durch">
+            <RollenChips field="durchfuehrung_durch"/>
+          </Field>
+        </div>
+      )}
+
+      {tab === 'referenzen' && (
+        <div className="py-10 text-center">
+          <div className="w-10 h-10 mx-auto mb-3 rounded-xl bg-ink-50 flex items-center justify-center text-ink-300">
+            <Icon name="link" cls="w-5 h-5"/>
+          </div>
+          <p className="text-[14px] font-medium text-ink-900 mb-1">Keine Referenzen</p>
+          <p className="text-[12.5px] text-ink-400">Referenzen auf andere Objekte können hier hinterlegt werden.</p>
+        </div>
+      )}
+
+      {tab === 'anhaenge' && (
+        <div className="space-y-4">
+          <label className="block cursor-pointer">
+            <div className="border-2 border-dashed border-line rounded-xl p-6 text-center hover:border-petrol-400 hover:bg-[#f0fafb] transition-colors">
+              <Icon name="paperclip" cls="w-6 h-6 mx-auto mb-2 text-ink-300"/>
+              <p className="text-[13px] font-medium text-ink-700">{pdfLoading ? 'Wird geladen…' : 'PDF-Dateien hier ablegen oder klicken'}</p>
+              <p className="text-[11.5px] text-ink-400 mt-1">Nur PDF · max. 4 MB pro Datei</p>
+            </div>
+            <input type="file" accept=".pdf" multiple className="hidden" onChange={handlePdf}/>
+          </label>
+          {(form.anhaenge || []).length > 0 && (
+            <div className="card divide-y divide-line overflow-hidden">
+              {(form.anhaenge || []).map((a, i) => (
+                <div key={i} className="flex items-center gap-3 px-4 py-3">
+                  <Icon name="file-text" cls="w-4 h-4 text-ink-400 flex-shrink-0"/>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-medium text-ink-900 truncate">{a.name}</p>
+                    <p className="text-[11px] text-ink-400">{(a.size / 1024).toFixed(1)} KB</p>
+                  </div>
+                  <button onClick={() => removeAnhang(i)} className="p-1.5 rounded text-ink-300 hover:text-[#a13d36] hover:bg-rose-50 transition-colors">
+                    <Icon name="x" cls="w-3.5 h-3.5"/>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {(form.anhaenge || []).length === 0 && !pdfLoading && (
+            <p className="text-[12.5px] text-ink-300 text-center italic">Noch keine Anhänge.</p>
+          )}
+        </div>
+      )}
+    </Modal>
+  );
+};
+
+const IKSDetailPanel = ({ kontrolle, onEdit, onClose, canEdit }) => {
+  const [tab, setTab] = useState('allgemein');
+  const DET_TABS = [
+    { id: 'allgemein',     label: 'Allgemein'    },
+    { id: 'durchfuehrung', label: 'Durchführung' },
+    { id: 'referenzen',    label: 'Referenzen'   },
+    { id: 'anhaenge',      label: `Anhänge${(kontrolle.anhaenge || []).length ? ` (${kontrolle.anhaenge.length})` : ''}` },
+  ];
+  const hLabel = IKS_HAEUFIGKEIT.find(h => h.id === kontrolle.haeufigkeit)?.label || kontrolle.haeufigkeit || '—';
+  return (
+    <Modal title={kontrolle.iks_id} subtitle={kontrolle.titel} onClose={onClose} size="lg"
+      footer={<><button onClick={onClose} className="btn btn-ghost">Schließen</button>{canEdit && <button onClick={onEdit} className="btn btn-primary"><Icon name="edit" cls="w-3.5 h-3.5"/> Bearbeiten</button>}</>}>
+      <div className="flex gap-1 border-b border-line -mx-6 px-6 mb-5">
+        {DET_TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`px-4 py-2 text-[13px] font-medium border-b-2 transition-colors -mb-px ${tab === t.id ? 'border-petrol-500 text-petrol-600' : 'border-transparent text-ink-400 hover:text-ink-900'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'allgemein' && (
+        <div className="space-y-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1 min-w-0">
+              <p className="text-[17px] font-semibold text-ink-900 leading-tight">{kontrolle.titel}</p>
+              {kontrolle.beschreibung && <p className="text-[13px] text-ink-500 leading-relaxed">{kontrolle.beschreibung}</p>}
+            </div>
+            <span className={`flex-shrink-0 text-[11.5px] font-medium px-2 py-0.5 rounded border ${kontrolle.status === 'aktiv' ? 'bg-[#e6f1ee] text-[#2e5a4d] border-[#b4d5cb]' : 'bg-ink-50 text-ink-500 border-line'}`}>
+              {kontrolle.status === 'aktiv' ? 'Aktiv' : 'Inaktiv'}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-4 pt-2 border-t border-line">
+            <div>
+              <span className="lbl">Kategorie</span>
+              <p className="text-[13.5px] text-ink-900 font-medium mt-0.5">{kontrolle.kategorie || '—'}</p>
+            </div>
+            <div>
+              <span className="lbl">Relevanz</span>
+              <div className="mt-0.5"><RelevanzBadge id={kontrolle.relevanz}/></div>
+            </div>
+          </div>
+          {(kontrolle.kontrolleigner || []).length > 0 && (
+            <div className="pt-2 border-t border-line">
+              <span className="lbl">Kontrolleigner</span>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {kontrolle.kontrolleigner.map(r => <span key={r} className="px-2 py-0.5 rounded-md bg-ink-50 border border-line text-[12px] text-ink-700 font-medium">{r}</span>)}
+              </div>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-6 pt-4 border-t border-line">
+            <div><span className="lbl">Erstellt</span><p className="text-[13px] text-ink-700 font-mono">{fmtDateTime(kontrolle.erstellt_am)}</p></div>
+            <div><span className="lbl">Zuletzt geändert</span><p className="text-[13px] text-ink-700 font-mono">{fmtDateTime(kontrolle.aktualisiert_am)}</p></div>
+          </div>
+        </div>
+      )}
+
+      {tab === 'durchfuehrung' && (
+        <div className="space-y-5">
+          <div>
+            <span className="lbl">Häufigkeit</span>
+            <p className="text-[14px] font-semibold text-ink-900 mt-1">{hLabel}</p>
+          </div>
+          {(kontrolle.durchfuehrung_durch || []).length > 0 && (
+            <div className="pt-4 border-t border-line">
+              <span className="lbl">Durchführung durch</span>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {kontrolle.durchfuehrung_durch.map(r => <span key={r} className="px-2 py-0.5 rounded-md bg-ink-50 border border-line text-[12px] text-ink-700 font-medium">{r}</span>)}
+              </div>
+            </div>
+          )}
+          {(kontrolle.durchfuehrung_durch || []).length === 0 && (
+            <p className="text-[13px] text-ink-400 italic">Keine Rolle zugewiesen.</p>
+          )}
+        </div>
+      )}
+
+      {tab === 'referenzen' && (
+        <div className="py-10 text-center">
+          <div className="w-10 h-10 mx-auto mb-3 rounded-xl bg-ink-50 flex items-center justify-center text-ink-300">
+            <Icon name="link" cls="w-5 h-5"/>
+          </div>
+          <p className="text-[14px] font-medium text-ink-900 mb-1">Keine Referenzen</p>
+          <p className="text-[12.5px] text-ink-400">Referenzen auf andere Objekte können hier hinterlegt werden.</p>
+        </div>
+      )}
+
+      {tab === 'anhaenge' && (
+        <div className="space-y-3">
+          {(kontrolle.anhaenge || []).length === 0
+            ? <div className="py-10 text-center"><Icon name="paperclip" cls="w-8 h-8 mx-auto mb-2 text-ink-200"/><p className="text-[13px] text-ink-400">Keine Anhänge vorhanden.</p></div>
+            : <div className="card divide-y divide-line overflow-hidden">
+                {(kontrolle.anhaenge || []).map((a, i) => (
+                  <div key={i} className="flex items-center gap-3 px-4 py-3">
+                    <Icon name="file-text" cls="w-4 h-4 text-ink-400 flex-shrink-0"/>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-medium text-ink-900 truncate">{a.name}</p>
+                      <p className="text-[11px] text-ink-400">{(a.size / 1024).toFixed(1)} KB</p>
+                    </div>
+                    <button onClick={() => { const el = document.createElement('a'); el.href = a.data; el.download = a.name; el.click(); }}
+                      className="btn btn-outline btn-sm"><Icon name="download" cls="w-3.5 h-3.5"/> Herunterladen</button>
+                  </div>
+                ))}
+              </div>
+          }
+        </div>
+      )}
+    </Modal>
+  );
+};
+
+const IKSView = ({ iksItems, onCreate, onView, onEdit, onDelete, config, canEdit, canDelete }) => {
+  const [search, setSearch]           = useState('');
+  const [statusFilter, setStatusFilter]   = useState('alle');
+  const [relevanzFilter, setRelevanzFilter] = useState('alle');
+
+  const filtered = iksItems.filter(k => {
+    const q = search.toLowerCase();
+    const matchS = !q || k.iks_id.toLowerCase().includes(q) || k.titel.toLowerCase().includes(q) || (k.beschreibung || '').toLowerCase().includes(q);
+    const matchF = statusFilter  === 'alle' || k.status   === statusFilter;
+    const matchR = relevanzFilter === 'alle' || k.relevanz === relevanzFilter;
+    return matchS && matchF && matchR;
+  }).sort((a, b) => a.iks_id.localeCompare(b.iks_id));
+
+  const schluessel = iksItems.filter(k => k.relevanz === 'schluesselkontrolle').length;
+  const hasFilter = search || statusFilter !== 'alle' || relevanzFilter !== 'alle';
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-[28px] font-medium text-ink-900 tracking-tight leading-none">Internes Kontrollsystem</h1>
+          <p className="text-[13px] text-ink-400 mt-2">Kontrollaktivitäten erfassen und verwalten.</p>
+        </div>
+        {canEdit && <button onClick={onCreate} className="btn btn-primary"><Icon name="plus" cls="w-3.5 h-3.5"/> Neue Kontrolle</button>}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <StatCard label="Kontrollen gesamt"    value={iksItems.length}                                          accent="black"  icon="shield"/>
+        <StatCard label="Aktiv"                value={iksItems.filter(k => k.status === 'aktiv').length}        accent="petrol" icon="check"/>
+        <StatCard label="Schlüsselkontrollen"  value={schluessel}                                               accent="black"  icon="zap"/>
+      </div>
+
+      <div className="toolbar-scroll"><div className="toolbar">
+        <div className="relative flex-1 min-w-[180px]">
+          <Icon name="search" cls="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-ink-300"/>
+          <input className="field pl-8 text-[13px]" placeholder="Suche…" value={search} onChange={e => setSearch(e.target.value)}/>
+        </div>
+        <select className="field text-[13px] w-auto flex-shrink-0" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+          <option value="alle">Alle Status</option>
+          <option value="aktiv">Aktiv</option>
+          <option value="inaktiv">Inaktiv</option>
+        </select>
+        <select className="field text-[13px] w-auto flex-shrink-0" value={relevanzFilter} onChange={e => setRelevanzFilter(e.target.value)}>
+          <option value="alle">Alle Relevanz</option>
+          {IKS_RELEVANZ.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+        </select>
+        {hasFilter && <button onClick={() => { setSearch(''); setStatusFilter('alle'); setRelevanzFilter('alle'); }} className="btn btn-ghost btn-sm flex-shrink-0">Zurücksetzen</button>}
+      </div></div>
+
+      {filtered.length === 0 ? (
+        <div className="py-16 text-center">
+          <div className="w-12 h-12 mx-auto mb-4 rounded-2xl bg-ink-50 flex items-center justify-center text-ink-200">
+            <Icon name="shield" cls="w-6 h-6"/>
+          </div>
+          <p className="text-[14px] font-medium text-ink-900 mb-1">{hasFilter ? 'Keine Ergebnisse' : 'Noch keine Kontrollen'}</p>
+          <p className="text-[12.5px] text-ink-400">{hasFilter ? 'Filter anpassen oder zurücksetzen.' : 'Legen Sie die erste Kontrollaktivität an.'}</p>
+        </div>
+      ) : (
+        <div className="card shadow-soft overflow-hidden">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Titel</th>
+                <th>Kategorie</th>
+                <th>Relevanz</th>
+                <th>Häufigkeit</th>
+                <th>Status</th>
+                {(canEdit || canDelete) && <th></th>}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(k => (
+                <tr key={k.id} className="cursor-pointer" onClick={() => onView(k)}>
+                  <td><span className="font-mono text-[12px] text-ink-500">{k.iks_id}</span></td>
+                  <td><p className="text-[13.5px] font-medium text-ink-900">{k.titel}</p></td>
+                  <td><span className="text-[12.5px] text-ink-500">{k.kategorie || '—'}</span></td>
+                  <td><RelevanzBadge id={k.relevanz}/></td>
+                  <td><span className="text-[12.5px] text-ink-500">{IKS_HAEUFIGKEIT.find(h => h.id === k.haeufigkeit)?.label || k.haeufigkeit || '—'}</span></td>
+                  <td>
+                    <span className={`text-[11.5px] font-medium px-2 py-0.5 rounded border ${k.status === 'aktiv' ? 'bg-[#e6f1ee] text-[#2e5a4d] border-[#b4d5cb]' : 'bg-ink-50 text-ink-500 border-line'}`}>
+                      {k.status === 'aktiv' ? 'Aktiv' : 'Inaktiv'}
+                    </span>
+                  </td>
+                  {(canEdit || canDelete) && (
+                    <td onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center gap-0.5 justify-end">
+                        {canEdit && <button onClick={() => onEdit(k)} className="p-1.5 rounded-md text-ink-400 hover:text-ink-900 hover:bg-ink-50 transition-colors" title="Bearbeiten"><Icon name="edit" cls="w-3.5 h-3.5"/></button>}
+                        {canDelete && <button onClick={() => onDelete(k.id)} className="p-1.5 rounded-md text-ink-400 hover:text-[#a13d36] hover:bg-rose-50 transition-colors" title="Löschen"><Icon name="trash" cls="w-3.5 h-3.5"/></button>}
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── BenutzerView ────────────────────────────────────────────────────────────
 const BenutzerForm = ({ initial, onSave, onClose, currentUserId }) => {
   const isEdit = !!initial?.id;
@@ -2852,6 +3301,8 @@ const App = () => {
   const [richtlinieDetail, setRichtlinieDetail] = useState(null);
   const [assetModal, setAssetModal] = useState(null);
   const [assetDetail, setAssetDetail] = useState(null);
+  const [iksModal, setIksModal] = useState(null);
+  const [iksDetail, setIksDetail] = useState(null);
   const [syncStatus, setSyncStatus] = useState('idle');
   const gistLoadedRef = useRef(false);
   const saveTimerRef  = useRef(null);
@@ -2983,6 +3434,22 @@ const App = () => {
   const handleConfigChange  = (newConfig) => setData(d => ({ ...d, config: newConfig }));
   const handleWelcomeChange = (text) => setData(d => ({ ...d, config: { ...(d.config || DEFAULT_CONFIG), welcomeText: text } }));
 
+  // ── IKS CRUD ──
+  const createIks = (form) => {
+    const now = nowISO();
+    setData(d => ({ ...d, iks: [...(d.iks || []), { ...form, id: uuid(), erstellt_am: now, aktualisiert_am: now }] }));
+    setIksModal(null);
+  };
+  const updateIks = (form) => {
+    setData(d => ({ ...d, iks: (d.iks || []).map(k => k.id === form.id ? { ...k, ...form, aktualisiert_am: nowISO() } : k) }));
+    setIksModal(null);
+    setIksDetail(prev => prev?.id === form.id ? { ...prev, ...form, aktualisiert_am: nowISO() } : prev);
+  };
+  const deleteIks = (id) => {
+    if (!confirm('Kontrollaktivität wirklich löschen?')) return;
+    setData(d => ({ ...d, iks: (d.iks || []).filter(k => k.id !== id) }));
+  };
+
   // ── Assets CRUD ──
   const createAsset = (form) => {
     const now = nowISO();
@@ -3002,6 +3469,7 @@ const App = () => {
   const anf     = data.anforderungen || [];
   const rl      = data.richtlinien  || [];
   const assets  = data.assets || [];
+  const iks     = data.iks    || [];
   const users   = data.users || [];
   const cfg     = getConfig(data);
   const isAdmin   = session?.role === 'admin';
@@ -3012,7 +3480,8 @@ const App = () => {
     { id: 'start',         label: 'Start',               icon: 'home'   },
     { id: 'anforderungen', label: 'Anforderungen',        icon: 'list',  count: anf.length    },
     { id: 'richtlinien',   label: 'Richtlinien',          icon: 'book',  count: rl.length     },
-    { id: 'assets',        label: 'Assets',               icon: 'layers',count: assets.length },
+    { id: 'assets',        label: 'Assets',               icon: 'layers', count: assets.length },
+    { id: 'iks',           label: 'IKS',                  icon: 'shield', count: iks.length    },
   ];
 
   if (!session) return (
@@ -3168,6 +3637,15 @@ const App = () => {
               onDelete={deleteAsset}
             />
           )}
+          {view === 'iks' && (
+            <IKSView
+              iksItems={iks} config={cfg} canEdit={canEdit} canDelete={canDelete}
+              onCreate={() => setIksModal('new')}
+              onView={k => setIksDetail(k)}
+              onEdit={k => setIksModal(k)}
+              onDelete={deleteIks}
+            />
+          )}
         </div>
       </main>
 
@@ -3228,10 +3706,29 @@ const App = () => {
         />
       )}
 
+      {/* IKS Form */}
+      {iksModal && (
+        <IKSForm
+          initial={iksModal === 'new' ? null : iksModal}
+          onSave={iksModal === 'new' ? createIks : updateIks}
+          onClose={() => setIksModal(null)}
+          config={cfg}
+        />
+      )}
+
+      {/* IKS Detail */}
+      {iksDetail && (
+        <IKSDetailPanel
+          kontrolle={iksDetail} canEdit={canEdit}
+          onEdit={() => { setIksModal(iksDetail); setIksDetail(null); }}
+          onClose={() => setIksDetail(null)}
+        />
+      )}
+
       {showSettings && (
         <EinstellungenModal
           data={data}
-          onImport={newData => { setData({ anforderungen: newData.anforderungen || [], richtlinien: newData.richtlinien || [], assets: newData.assets || [], users: newData.users || [], config: newData.config || DEFAULT_CONFIG }); saveData(newData); setShowSettings(false); }}
+          onImport={newData => { setData({ anforderungen: newData.anforderungen || [], richtlinien: newData.richtlinien || [], assets: newData.assets || [], iks: newData.iks || [], users: newData.users || [], config: newData.config || DEFAULT_CONFIG }); saveData(newData); setShowSettings(false); }}
           onClose={() => setShowSettings(false)}
           syncStatus={syncStatus}
           onConnectGist={handleConnectGist}
