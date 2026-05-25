@@ -3365,6 +3365,7 @@ const App = () => {
   const [assetDetail, setAssetDetail] = useState(null);
   const [iksModal, setIksModal] = useState(null);
   const [iksDetail, setIksDetail] = useState(null);
+  const [dsMenuOpen, setDsMenuOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState('idle');
   const gistLoadedRef = useRef(false);
   const saveTimerRef  = useRef(null);
@@ -3601,25 +3602,13 @@ const App = () => {
             </button>
           ))}
 
-          {/* Datenschutz group */}
-          {sidebarOpen ? (
-            <>
-              <p className="nav-group-label" style={{ marginTop: '6px' }}>Datenschutz</p>
-              {DS_NAV.map(item => (
-                <button key={item.id} onClick={() => { setView(item.id); if (window.innerWidth < 1024) setSidebarOpen(false); }}
-                  className={`nav-item nav-sub w-full ${view === item.id ? 'active' : ''}`}>
-                  <Icon name={item.icon} cls="w-3.5 h-3.5 flex-shrink-0"/>
-                  <span className="flex-1 text-left">{item.label}</span>
-                </button>
-              ))}
-            </>
-          ) : (
-            <button onClick={() => { setSidebarOpen(true); if (!view.startsWith('ds-')) setView('ds-vvt'); }}
-              className={`nav-item w-full ${view.startsWith('ds-') ? 'active' : ''}`}
-              title="Datenschutz">
-              <Icon name="lock" cls="w-3.5 h-3.5 flex-shrink-0"/>
-            </button>
-          )}
+          {/* Datenschutz — single item, flyout on click */}
+          <button onClick={() => setDsMenuOpen(o => !o)}
+            className={`nav-item w-full ${view.startsWith('ds-') ? 'active' : ''}`}
+            title="Datenschutz">
+            <Icon name="lock" cls="w-3.5 h-3.5 flex-shrink-0"/>
+            {sidebarOpen && <span className="flex-1 text-left">Datenschutz</span>}
+          </button>
         </nav>
 
         <div className="px-2 py-3 border-t border-line space-y-0.5">
@@ -3665,6 +3654,32 @@ const App = () => {
           )}
         </div>
       </aside>
+
+      {/* Datenschutz flyout panel */}
+      {dsMenuOpen && (
+        <>
+          <div className="fixed inset-0 z-[35]" onClick={() => setDsMenuOpen(false)}/>
+          <div className="fixed top-0 bottom-0 z-[36] bg-white border-r border-[#dde4ea] shadow-[2px_0_16px_rgba(0,0,0,0.10)] flex flex-col"
+            style={{ left: sidebarOpen ? '220px' : '56px', width: '220px' }}>
+            <div className="flex items-center gap-2.5 px-4 py-4 border-b border-line">
+              <div className="w-6 h-6 rounded-md bg-brand-100 flex items-center justify-center text-brand-600 flex-shrink-0">
+                <Icon name="lock" cls="w-3.5 h-3.5"/>
+              </div>
+              <span className="text-[13px] font-semibold text-ink-900 tracking-tight">Datenschutz</span>
+            </div>
+            <nav className="flex-1 px-2 py-3 space-y-0.5">
+              {DS_NAV.map(item => (
+                <button key={item.id}
+                  onClick={() => { setView(item.id); setDsMenuOpen(false); if (window.innerWidth < 1024) setSidebarOpen(false); }}
+                  className={`nav-item w-full ${view === item.id ? 'active' : ''}`}>
+                  <Icon name={item.icon} cls="w-3.5 h-3.5 flex-shrink-0"/>
+                  <span className="flex-1 text-left">{item.label}</span>
+                </button>
+              ))}
+            </nav>
+          </div>
+        </>
+      )}
 
       {/* Main */}
       <main className="flex-1 overflow-y-auto min-w-0">
