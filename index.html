@@ -307,6 +307,14 @@ tailwind.config = {
   .nav-item:hover { background: #e7edf2; color: var(--ink-900); }
   .nav-item.active { background: var(--brand); color: #ffffff; }
   .nav-item.active:hover { background: var(--brand-500); }
+  /* Sub-item indentation for grouped nav sections */
+  .nav-sub { padding-left: 28px; }
+  .nav-group-label {
+    padding: 8px 10px 4px;
+    font-size: 0.625rem; font-weight: 600;
+    color: var(--ink-300);
+    text-transform: uppercase; letter-spacing: 0.07em;
+  }
 
   /* Modal */
   .modal-backdrop {
@@ -1275,7 +1283,7 @@ const AnforderungForm = ({ initial, onSave, onClose, anforderungen, config }) =>
   const kategorien = config?.anfKategorien || DEFAULT_KATEGORIEN;
   const defaultKat = Object.keys(kategorien)[0];
   const [form, setForm] = useState(() => initial || {
-    anforderung_id: '', kategorie: defaultKat, unterkategorie: '', beschreibung: '',
+    anforderung_id: '', kategorie: defaultKat, unterkategorie: '', beschreibung: '', iso_control: '', ergaenzende_kriterien: '',
   });
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -1323,8 +1331,16 @@ const AnforderungForm = ({ initial, onSave, onClose, anforderungen, config }) =>
           </Field>
         </div>
         <Field label="Beschreibung" required>
-          <textarea className="field" rows={6} value={form.beschreibung} onChange={e => set('beschreibung', e.target.value)} placeholder="Anforderung präzise beschreiben…"/>
+          <textarea className="field" rows={5} value={form.beschreibung} onChange={e => set('beschreibung', e.target.value)} placeholder="Anforderung präzise beschreiben…"/>
         </Field>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="ISO-Control">
+            <textarea className="field" rows={2} value={form.iso_control || ''} onChange={e => set('iso_control', e.target.value)} placeholder="z.B. ISO 27001 A.5.1.1"/>
+          </Field>
+          <Field label="Ergänzende Kriterien">
+            <textarea className="field" rows={2} value={form.ergaenzende_kriterien || ''} onChange={e => set('ergaenzende_kriterien', e.target.value)} placeholder="Weitere Kriterien oder Normbezüge…"/>
+          </Field>
+        </div>
       </div>
     </Modal>
   );
@@ -1364,6 +1380,23 @@ const AnforderungDetailPanel = ({ anforderung, onEdit, onClose, richtlinien = []
             <p className="text-[13.5px] text-ink-900">{anforderung.unterkategorie || '—'}</p>
           </div>
         </div>
+
+        {(anforderung.iso_control || anforderung.ergaenzende_kriterien) && (
+          <div className="grid grid-cols-2 gap-6 pt-4 border-t border-line">
+            {anforderung.iso_control && (
+              <div>
+                <span className="lbl">ISO-Control</span>
+                <p className="text-[13.5px] text-ink-900 leading-relaxed whitespace-pre-wrap">{anforderung.iso_control}</p>
+              </div>
+            )}
+            {anforderung.ergaenzende_kriterien && (
+              <div>
+                <span className="lbl">Ergänzende Kriterien</span>
+                <p className="text-[13.5px] text-ink-900 leading-relaxed whitespace-pre-wrap">{anforderung.ergaenzende_kriterien}</p>
+              </div>
+            )}
+          </div>
+        )}
 
         <div>
           <span className="lbl">Verknüpfte Richtlinien</span>
@@ -3178,6 +3211,39 @@ const IKSView = ({ iksItems, onCreate, onView, onEdit, onDelete, config, canEdit
   );
 };
 
+// ── Datenschutz ───────────────────────────────────────────────────────────────
+const DS_NAV = [
+  { id: 'ds-vvt',       label: 'Verarbeitungstätigkeiten', icon: 'file-text'    },
+  { id: 'ds-dsfa',      label: 'DS-Folgeabschätzungen',    icon: 'shield-alert' },
+  { id: 'ds-vorfaelle', label: 'Datenschutzvorfälle',      icon: 'spark'        },
+  { id: 'ds-anfragen',  label: 'Betroffenenanfragen',      icon: 'user'         },
+];
+
+const DSPlaceholderView = ({ title, subtitle, icon }) => (
+  <div className="space-y-6">
+    <div className="flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <h1 className="text-[28px] font-medium text-ink-900 tracking-tight leading-none">{title}</h1>
+        <p className="text-[13px] text-ink-400 mt-2">{subtitle}</p>
+      </div>
+    </div>
+    <div className="card overflow-x-auto shadow-soft">
+      <div className="px-12 py-20 text-center">
+        <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-ink-50 flex items-center justify-center text-ink-300">
+          <Icon name={icon} cls="w-5 h-5"/>
+        </div>
+        <p className="text-[15px] font-medium text-ink-900 mb-1">Noch keine Einträge</p>
+        <p className="text-[13px] text-ink-400">Dieser Bereich wird in Kürze ausgebaut.</p>
+      </div>
+    </div>
+  </div>
+);
+
+const VVTView        = () => <DSPlaceholderView title="Verzeichnis von Verarbeitungstätigkeiten" subtitle="Übersicht aller Datenverarbeitungsvorgänge gemäß Art. 30 DSGVO."          icon="file-text"/>;
+const DSFAView       = () => <DSPlaceholderView title="DS-Folgeabschätzungen"                    subtitle="Datenschutz-Folgeabschätzungen (DSFA) gemäß Art. 35 DSGVO verwalten."    icon="shield-alert"/>;
+const VorfaelleView  = () => <DSPlaceholderView title="Datenschutzvorfälle"                      subtitle="Vorfälle erfassen, dokumentieren und Meldepflichten nachverfolgen."        icon="spark"/>;
+const AnfragenView   = () => <DSPlaceholderView title="Betroffenenanfragen"                      subtitle="Anfragen betroffener Personen (Art. 15–22 DSGVO) erfassen und bearbeiten." icon="user"/>;
+
 // ── BenutzerView ────────────────────────────────────────────────────────────
 const BenutzerForm = ({ initial, onSave, onClose, currentUserId }) => {
   const isEdit = !!initial?.id;
@@ -3284,6 +3350,9 @@ const App = () => {
   const [assetDetail, setAssetDetail] = useState(null);
   const [iksModal, setIksModal] = useState(null);
   const [iksDetail, setIksDetail] = useState(null);
+  const [ismsMenuOpen, setIsmsMenuOpen] = useState(false);
+  const [iksMenuOpen, setIksMenuOpen] = useState(false);
+  const [dsMenuOpen, setDsMenuOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState('idle');
   const gistLoadedRef = useRef(false);
   const saveTimerRef  = useRef(null);
@@ -3458,11 +3527,15 @@ const App = () => {
   const canDelete = isAdmin;
 
   const navItems = [
-    { id: 'start',         label: 'Start',               icon: 'home'   },
-    { id: 'anforderungen', label: 'Anforderungen',        icon: 'list',  count: anf.length    },
-    { id: 'richtlinien',   label: 'Richtlinien',          icon: 'book',  count: rl.length     },
-    { id: 'assets',        label: 'Assets',               icon: 'layers', count: assets.length },
-    { id: 'iks',           label: 'IKS',                  icon: 'shield', count: iks.length    },
+    { id: 'start',         label: 'Start',          icon: 'home'  },
+    { id: 'anforderungen', label: 'Anforderungen',   icon: 'list', count: anf.length },
+    { id: 'richtlinien',   label: 'Richtlinien',     icon: 'book', count: rl.length  },
+  ];
+  const ISMS_NAV = [
+    { id: 'assets', label: 'Assets', icon: 'layers', count: assets.length },
+  ];
+  const IKS_NAV = [
+    { id: 'iks', label: 'Kontrollaktivitäten', icon: 'check', count: iks.length },
   ];
 
   if (!session) return (
@@ -3505,8 +3578,8 @@ const App = () => {
           </button>
         )}
 
-        <nav className="flex-1 px-2 py-3 space-y-0.5">
-          {sidebarOpen && <p className="px-2 mb-1.5 text-[10px] font-medium text-ink-300 uppercase tracking-wider">Navigation</p>}
+        <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+          {sidebarOpen && <p className="nav-group-label">Navigation</p>}
           {navItems.map(item => (
             <button key={item.id} onClick={() => { setView(item.id); if (window.innerWidth < 1024) setSidebarOpen(false); }}
               className={`nav-item w-full ${view === item.id ? 'active' : ''}`}>
@@ -3519,6 +3592,40 @@ const App = () => {
               )}
             </button>
           ))}
+
+          {/* ISMS — single item, flyout on click */}
+          <button onClick={() => setIsmsMenuOpen(o => !o)}
+            className={`nav-item w-full ${view === 'assets' ? 'active' : ''}`}
+            title="ISMS">
+            <Icon name="layers" cls="w-3.5 h-3.5 flex-shrink-0"/>
+            {sidebarOpen && (
+              <>
+                <span className="flex-1 text-left">ISMS</span>
+                {assets.length > 0 && <span className="font-mono text-[10.5px] opacity-60">{assets.length}</span>}
+              </>
+            )}
+          </button>
+
+          {/* IKS — single item, flyout on click */}
+          <button onClick={() => setIksMenuOpen(o => !o)}
+            className={`nav-item w-full ${view === 'iks' ? 'active' : ''}`}
+            title="IKS">
+            <Icon name="shield" cls="w-3.5 h-3.5 flex-shrink-0"/>
+            {sidebarOpen && (
+              <>
+                <span className="flex-1 text-left">IKS</span>
+                {iks.length > 0 && <span className="font-mono text-[10.5px] opacity-60">{iks.length}</span>}
+              </>
+            )}
+          </button>
+
+          {/* Datenschutz — single item, flyout on click */}
+          <button onClick={() => setDsMenuOpen(o => !o)}
+            className={`nav-item w-full ${view.startsWith('ds-') ? 'active' : ''}`}
+            title="Datenschutz">
+            <Icon name="lock" cls="w-3.5 h-3.5 flex-shrink-0"/>
+            {sidebarOpen && <span className="flex-1 text-left">Datenschutz</span>}
+          </button>
         </nav>
 
         <div className="px-2 py-3 border-t border-line space-y-0.5">
@@ -3558,6 +3665,86 @@ const App = () => {
           )}
         </div>
       </aside>
+
+      {/* ISMS flyout panel */}
+      {ismsMenuOpen && (
+        <>
+          <div className="fixed inset-0 z-[35]" onClick={() => setIsmsMenuOpen(false)}/>
+          <div className="fixed top-0 bottom-0 z-[36] bg-white border-r border-[#dde4ea] shadow-[2px_0_16px_rgba(0,0,0,0.10)] flex flex-col"
+            style={{ left: sidebarOpen ? '220px' : '56px', width: '220px' }}>
+            <div className="flex items-center gap-2.5 px-4 py-4 border-b border-line">
+              <div className="w-6 h-6 rounded-md bg-brand-100 flex items-center justify-center text-brand-600 flex-shrink-0">
+                <Icon name="layers" cls="w-3.5 h-3.5"/>
+              </div>
+              <span className="text-[13px] font-semibold text-ink-900 tracking-tight">ISMS</span>
+            </div>
+            <nav className="flex-1 px-2 py-3 space-y-0.5">
+              {ISMS_NAV.map(item => (
+                <button key={item.id}
+                  onClick={() => { setView(item.id); setIsmsMenuOpen(false); if (window.innerWidth < 1024) setSidebarOpen(false); }}
+                  className={`nav-item w-full ${view === item.id ? 'active' : ''}`}>
+                  <Icon name={item.icon} cls="w-3.5 h-3.5 flex-shrink-0"/>
+                  <span className="flex-1 text-left">{item.label}</span>
+                  {item.count != null && <span className="font-mono text-[10.5px] opacity-60">{item.count}</span>}
+                </button>
+              ))}
+            </nav>
+          </div>
+        </>
+      )}
+
+      {/* IKS flyout panel */}
+      {iksMenuOpen && (
+        <>
+          <div className="fixed inset-0 z-[35]" onClick={() => setIksMenuOpen(false)}/>
+          <div className="fixed top-0 bottom-0 z-[36] bg-white border-r border-[#dde4ea] shadow-[2px_0_16px_rgba(0,0,0,0.10)] flex flex-col"
+            style={{ left: sidebarOpen ? '220px' : '56px', width: '220px' }}>
+            <div className="flex items-center gap-2.5 px-4 py-4 border-b border-line">
+              <div className="w-6 h-6 rounded-md bg-brand-100 flex items-center justify-center text-brand-600 flex-shrink-0">
+                <Icon name="shield" cls="w-3.5 h-3.5"/>
+              </div>
+              <span className="text-[13px] font-semibold text-ink-900 tracking-tight">IKS</span>
+            </div>
+            <nav className="flex-1 px-2 py-3 space-y-0.5">
+              {IKS_NAV.map(item => (
+                <button key={item.id}
+                  onClick={() => { setView(item.id); setIksMenuOpen(false); if (window.innerWidth < 1024) setSidebarOpen(false); }}
+                  className={`nav-item w-full ${view === item.id ? 'active' : ''}`}>
+                  <Icon name={item.icon} cls="w-3.5 h-3.5 flex-shrink-0"/>
+                  <span className="flex-1 text-left">{item.label}</span>
+                  {item.count != null && <span className="font-mono text-[10.5px] opacity-60">{item.count}</span>}
+                </button>
+              ))}
+            </nav>
+          </div>
+        </>
+      )}
+
+      {/* Datenschutz flyout panel */}
+      {dsMenuOpen && (
+        <>
+          <div className="fixed inset-0 z-[35]" onClick={() => setDsMenuOpen(false)}/>
+          <div className="fixed top-0 bottom-0 z-[36] bg-white border-r border-[#dde4ea] shadow-[2px_0_16px_rgba(0,0,0,0.10)] flex flex-col"
+            style={{ left: sidebarOpen ? '220px' : '56px', width: '220px' }}>
+            <div className="flex items-center gap-2.5 px-4 py-4 border-b border-line">
+              <div className="w-6 h-6 rounded-md bg-brand-100 flex items-center justify-center text-brand-600 flex-shrink-0">
+                <Icon name="lock" cls="w-3.5 h-3.5"/>
+              </div>
+              <span className="text-[13px] font-semibold text-ink-900 tracking-tight">Datenschutz</span>
+            </div>
+            <nav className="flex-1 px-2 py-3 space-y-0.5">
+              {DS_NAV.map(item => (
+                <button key={item.id}
+                  onClick={() => { setView(item.id); setDsMenuOpen(false); if (window.innerWidth < 1024) setSidebarOpen(false); }}
+                  className={`nav-item w-full ${view === item.id ? 'active' : ''}`}>
+                  <Icon name={item.icon} cls="w-3.5 h-3.5 flex-shrink-0"/>
+                  <span className="flex-1 text-left">{item.label}</span>
+                </button>
+              ))}
+            </nav>
+          </div>
+        </>
+      )}
 
       {/* Main */}
       <main className="flex-1 overflow-y-auto min-w-0">
@@ -3620,6 +3807,10 @@ const App = () => {
               onDelete={deleteIks}
             />
           )}
+          {view === 'ds-vvt'       && <VVTView/>}
+          {view === 'ds-dsfa'      && <DSFAView/>}
+          {view === 'ds-vorfaelle' && <VorfaelleView/>}
+          {view === 'ds-anfragen'  && <AnfragenView/>}
         </div>
       </main>
 
