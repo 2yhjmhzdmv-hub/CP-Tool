@@ -307,6 +307,14 @@ tailwind.config = {
   .nav-item:hover { background: #e7edf2; color: var(--ink-900); }
   .nav-item.active { background: var(--brand); color: #ffffff; }
   .nav-item.active:hover { background: var(--brand-500); }
+  /* Sub-item indentation for grouped nav sections */
+  .nav-sub { padding-left: 28px; }
+  .nav-group-label {
+    padding: 8px 10px 4px;
+    font-size: 0.625rem; font-weight: 600;
+    color: var(--ink-300);
+    text-transform: uppercase; letter-spacing: 0.07em;
+  }
 
   /* Modal */
   .modal-backdrop {
@@ -3218,6 +3226,39 @@ const IKSView = ({ iksItems, onCreate, onView, onEdit, onDelete, config, canEdit
   );
 };
 
+// ── Datenschutz ───────────────────────────────────────────────────────────────
+const DS_NAV = [
+  { id: 'ds-vvt',       label: 'Verarbeitungstätigkeiten', icon: 'file-text'    },
+  { id: 'ds-dsfa',      label: 'DS-Folgeabschätzungen',    icon: 'shield-alert' },
+  { id: 'ds-vorfaelle', label: 'Datenschutzvorfälle',      icon: 'spark'        },
+  { id: 'ds-anfragen',  label: 'Betroffenenanfragen',      icon: 'user'         },
+];
+
+const DSPlaceholderView = ({ title, subtitle, icon }) => (
+  <div className="space-y-6">
+    <div className="flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <h1 className="text-[28px] font-medium text-ink-900 tracking-tight leading-none">{title}</h1>
+        <p className="text-[13px] text-ink-400 mt-2">{subtitle}</p>
+      </div>
+    </div>
+    <div className="card overflow-x-auto shadow-soft">
+      <div className="px-12 py-20 text-center">
+        <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-ink-50 flex items-center justify-center text-ink-300">
+          <Icon name={icon} cls="w-5 h-5"/>
+        </div>
+        <p className="text-[15px] font-medium text-ink-900 mb-1">Noch keine Einträge</p>
+        <p className="text-[13px] text-ink-400">Dieser Bereich wird in Kürze ausgebaut.</p>
+      </div>
+    </div>
+  </div>
+);
+
+const VVTView        = () => <DSPlaceholderView title="Verzeichnis von Verarbeitungstätigkeiten" subtitle="Übersicht aller Datenverarbeitungsvorgänge gemäß Art. 30 DSGVO."          icon="file-text"/>;
+const DSFAView       = () => <DSPlaceholderView title="DS-Folgeabschätzungen"                    subtitle="Datenschutz-Folgeabschätzungen (DSFA) gemäß Art. 35 DSGVO verwalten."    icon="shield-alert"/>;
+const VorfaelleView  = () => <DSPlaceholderView title="Datenschutzvorfälle"                      subtitle="Vorfälle erfassen, dokumentieren und Meldepflichten nachverfolgen."        icon="spark"/>;
+const AnfragenView   = () => <DSPlaceholderView title="Betroffenenanfragen"                      subtitle="Anfragen betroffener Personen (Art. 15–22 DSGVO) erfassen und bearbeiten." icon="user"/>;
+
 // ── BenutzerView ────────────────────────────────────────────────────────────
 const BenutzerForm = ({ initial, onSave, onClose, currentUserId }) => {
   const isEdit = !!initial?.id;
@@ -3545,8 +3586,8 @@ const App = () => {
           </button>
         )}
 
-        <nav className="flex-1 px-2 py-3 space-y-0.5">
-          {sidebarOpen && <p className="px-2 mb-1.5 text-[10px] font-medium text-ink-300 uppercase tracking-wider">Navigation</p>}
+        <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+          {sidebarOpen && <p className="nav-group-label">Navigation</p>}
           {navItems.map(item => (
             <button key={item.id} onClick={() => { setView(item.id); if (window.innerWidth < 1024) setSidebarOpen(false); }}
               className={`nav-item w-full ${view === item.id ? 'active' : ''}`}>
@@ -3559,6 +3600,26 @@ const App = () => {
               )}
             </button>
           ))}
+
+          {/* Datenschutz group */}
+          {sidebarOpen ? (
+            <>
+              <p className="nav-group-label" style={{ marginTop: '6px' }}>Datenschutz</p>
+              {DS_NAV.map(item => (
+                <button key={item.id} onClick={() => { setView(item.id); if (window.innerWidth < 1024) setSidebarOpen(false); }}
+                  className={`nav-item nav-sub w-full ${view === item.id ? 'active' : ''}`}>
+                  <Icon name={item.icon} cls="w-3.5 h-3.5 flex-shrink-0"/>
+                  <span className="flex-1 text-left">{item.label}</span>
+                </button>
+              ))}
+            </>
+          ) : (
+            <button onClick={() => { setSidebarOpen(true); if (!view.startsWith('ds-')) setView('ds-vvt'); }}
+              className={`nav-item w-full ${view.startsWith('ds-') ? 'active' : ''}`}
+              title="Datenschutz">
+              <Icon name="lock" cls="w-3.5 h-3.5 flex-shrink-0"/>
+            </button>
+          )}
         </nav>
 
         <div className="px-2 py-3 border-t border-line space-y-0.5">
@@ -3667,6 +3728,10 @@ const App = () => {
               onDelete={deleteIks}
             />
           )}
+          {view === 'ds-vvt'       && <VVTView/>}
+          {view === 'ds-dsfa'      && <DSFAView/>}
+          {view === 'ds-vorfaelle' && <VorfaelleView/>}
+          {view === 'ds-anfragen'  && <AnfragenView/>}
         </div>
       </main>
 
